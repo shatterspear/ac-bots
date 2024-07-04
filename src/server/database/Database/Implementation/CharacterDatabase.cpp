@@ -29,7 +29,7 @@ void CharacterDatabaseConnection::DoPrepareStatements()
     PrepareStatement(CHAR_DEL_EXPIRED_BANS, "UPDATE character_banned SET active = 0 WHERE unbandate <= UNIX_TIMESTAMP() AND unbandate <> bandate", CONNECTION_ASYNC);
     PrepareStatement(CHAR_SEL_DATA_BY_NAME, "SELECT guid, account, name, gender, race, class, level FROM characters WHERE deleteDate IS NULL AND name = ?", CONNECTION_BOTH);
     PrepareStatement(CHAR_SEL_DATA_BY_GUID, "SELECT guid, account, name, gender, race, class, level FROM characters WHERE deleteDate IS NULL AND guid = ?", CONNECTION_BOTH);
-    PrepareStatement(CHAR_SEL_CHECK_NAME, "SELECT 1 FROM characters WHERE name = ?", CONNECTION_BOTH);
+    PrepareStatement(CHAR_SEL_CHECK_NAME, "SELECT 1 FROM (SELECT `name` FROM `acore_characters`.`characters` UNION ALL SELECT `name` FROM `acore_world`.`creature_template` WHERE `ScriptName` IN ('death_knight_bot', 'druid_bot', 'hunter_bot', 'mage_bot', 'paladin_bot', 'priest_bot', 'rogue_bot', 'shaman_bot', 'warlock_bot', 'warrior_bot') UNION ALL SELECT `new_name` AS `name` FROM `acore_world`.`ss_bot_rename_requests` WHERE `status` = 'pending') A WHERE `name` = ?;", CONNECTION_BOTH);
     PrepareStatement(CHAR_SEL_CHECK_GUID, "SELECT 1 FROM characters WHERE guid = ?", CONNECTION_SYNCH);
     PrepareStatement(CHAR_SEL_SUM_CHARS, "SELECT COUNT(guid) FROM characters WHERE account = ?", CONNECTION_BOTH);
     PrepareStatement(CHAR_SEL_CHAR_CREATE_INFO, "SELECT level, race, class FROM characters WHERE account = ? LIMIT 0, ?", CONNECTION_ASYNC);
