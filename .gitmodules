@@ -1,0 +1,11 @@
+[submodule "mod-eluna"]
+    path = modules/mod-eluna
+    url = git@github.com:shatterspear/mod-eluna.git
+
+[submodule "mod-instance-reset"]
+    path = modules/mod-instance-reset
+    url = git@github.com:shatterspear/mod-instance-reset.git
+
+[submodule "mod-transmog"]
+    path = modules/mod-transmog
+    url = git@github.com:shatterspear/mod-transmog.git
