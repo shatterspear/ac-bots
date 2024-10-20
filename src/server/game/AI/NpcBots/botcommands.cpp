@@ -594,6 +594,7 @@ public:
         static ChatCommandTable npcbotOrderCommandTable =
         {
             { "cast",       HandleNpcBotOrderCastCommand,           rbac::RBAC_PERM_COMMAND_NPCBOT_ORDER_CAST,         Console::No  },
+            { "pull",       HandleNpcBotOrderPullCommand,           rbac::RBAC_PERM_COMMAND_NPCBOT_ORDER_CAST,         Console::No  },
         };
 
         static ChatCommandTable npcbotVehicleCommandTable =
@@ -658,6 +659,7 @@ public:
             { "set",        npcbotSetCommandTable                                                                                   },
             { "add",        HandleNpcBotAddCommand,                 rbac::RBAC_PERM_COMMAND_NPCBOT_ADD,                Console::No  },
             { "remove",     HandleNpcBotRemoveCommand,              rbac::RBAC_PERM_COMMAND_NPCBOT_REMOVE,             Console::No  },
+            { "free",       HandleNpcBotFreeCommand,                rbac::RBAC_PERM_COMMAND_NPCBOT_REMOVE,             Console::No  },
             { "createnew",  HandleNpcBotCreateNewCommand,           rbac::RBAC_PERM_COMMAND_NPCBOT_CREATENEW,          Console::Yes },
             { "spawn",      HandleNpcBotSpawnCommand,               rbac::RBAC_PERM_COMMAND_NPCBOT_SPAWN,              Console::No  },
             { "move",       HandleNpcBotMoveCommand,                rbac::RBAC_PERM_COMMAND_NPCBOT_MOVE,               Console::No  },
@@ -906,7 +908,8 @@ public:
     }
     static void HandleWPUpdateLinks(ChatHandler* handler, WanderNode* wp, std::vector<uint32> linkIds, bool oneway = false)
     {
-        auto const linksCopy = wp->GetLinks();
+        auto const& links = wp->GetLinks();
+        std::remove_reference_t<decltype(links)> linksCopy = links;
 
         std::set<decltype(linksCopy)::value_type> wps_updates;
         std::copy(std::cbegin(linksCopy), std::cend(linksCopy), std::inserter(wps_updates, wps_updates.begin()));
@@ -1726,6 +1729,155 @@ public:
         return true;
     }
 
+    static bool HandleNpcBotOrderPullCommand(ChatHandler* handler, Optional<std::string> bot_name, Optional<std::string_view> target_token)
+    {
+        Player* owner = handler->GetSession()->GetPlayer();
+        if (!owner->HaveBot() || !bot_name)
+        {
+            handler->SendSysMessage(".npcbot order pull #bot_name #[target_token]");
+            handler->SendSysMessage("Orders bot to pull target immediately");
+            return true;
+        }
+
+        if (owner->GetBotMgr()->IsPartyInCombat())
+        {
+            handler->SendSysMessage("Can't do that while in combat!");
+            return true;
+        }
+
+        for (std::decay_t<decltype(*bot_name)>::size_type i = 0u; i < bot_name->size(); ++i)
+            if ((*bot_name)[i] == '_')
+                (*bot_name)[i] = ' ';
+
+        Creature* bot = owner->GetBotMgr()->GetBotByName(*bot_name);
+        if (bot)
+        {
+            if (!bot->IsInWorld())
+            {
+                handler->PSendSysMessage("Bot {} is not found!", *bot_name);
+                return true;
+            }
+            if (!bot->IsAlive())
+            {
+                handler->PSendSysMessage("{} is dead!", bot->GetName());
+                return true;
+            }
+            if (!bot->GetBotAI()->HasRole(BOT_ROLE_DPS) || bot->GetVictim() || bot->IsInCombat() || !bot->getAttackers().empty())
+            {
+                handler->PSendSysMessage("{} cannot pull target! Must be idle and have DPS role", bot->GetName());
+                return true;
+            }
+        }
+        else
+        {
+            auto const& class_name = *bot_name;
+            for (auto const c : class_name)
+            {
+                if (!std::islower(c))
+                {
+                    handler->SendSysMessage("Bot class name must be in lower case!");
+                    return true;
+                }
+            }
+
+            uint8 bot_class = BotMgr::BotClassByClassName(class_name);
+            if (bot_class == BOT_CLASS_NONE)
+            {
+                handler->PSendSysMessage("Unknown bot name or class {}!", class_name);
+                return true;
+            }
+
+            std::list<Creature*> cBots = owner->GetBotMgr()->GetAllBotsByClass(bot_class);
+
+            if (cBots.empty())
+            {
+                handler->PSendSysMessage("No bots of class {} found!", bot_class);
+                return true;
+            }
+
+            bot = cBots.size() == 1 ? cBots.front() : Acore::Containers::SelectRandomContainerElement(cBots);
+
+            if (!bot)
+            {
+                handler->SendSysMessage("None of {} found bots can use pull yet!", cBots.size());
+                return true;
+            }
+        }
+
+        ObjectGuid target_guid = ObjectGuid::Empty;
+        bool token_valid = true;
+        if (!target_token || target_token == "mytarget")
+            target_guid = owner->GetTarget();
+        else if (Group const* group = owner->GetGroup())
+        {
+            if (target_token == "star")
+                target_guid = group->GetTargetIcons()[0];
+            else if (target_token == "circle")
+                target_guid = group->GetTargetIcons()[1];
+            else if (target_token == "diamond")
+                target_guid = group->GetTargetIcons()[2];
+            else if (target_token == "triangle")
+                target_guid = group->GetTargetIcons()[3];
+            else if (target_token == "moon")
+                target_guid = group->GetTargetIcons()[4];
+            else if (target_token == "square")
+                target_guid = group->GetTargetIcons()[5];
+            else if (target_token == "cross")
+                target_guid = group->GetTargetIcons()[6];
+            else if (target_token == "skull")
+                target_guid = group->GetTargetIcons()[7];
+            else if (target_token->size() == 1u && std::isdigit(target_token->front()))
+            {
+                uint8 digit = static_cast<uint8>(std::stoi(std::string(*target_token)));
+                switch (digit)
+                {
+                    case 1: case 2: case 3: case 4: case 5: case 6: case 7: case 8:
+                        target_guid = group->GetTargetIcons()[digit - 1];
+                        break;
+                    default:
+                        token_valid = false;
+                        break;
+                }
+            }
+            else
+                token_valid = false;
+        }
+        else
+            token_valid = false;
+
+        if (!token_valid)
+        {
+            handler->PSendSysMessage("Invalid target token '{}'!", *target_token);
+            handler->SendSysMessage("Valid target tokens:\n    '','mytarget', "
+                "'star','1', 'circle','2', 'diamond','3', 'triangle','4', 'moon','5', 'square','6', 'cross','7', 'skull','8'"
+                "\nNote that target icons tokens are only available while in group");
+            return true;
+        }
+
+        Unit* target = target_guid ? ObjectAccessor::GetUnit(*owner, target_guid) : nullptr;
+        if (!target || !bot->FindMap() || target->FindMap() != bot->FindMap())
+        {
+            handler->PSendSysMessage("Invalid target '{}'!", target ? target->GetName().c_str() : "unknown");
+            return true;
+        }
+
+        bot_ai::BotOrder order(BOT_ORDER_PULL);
+        order.params.pullParams.targetGuid = target_guid.GetRawValue();
+
+        if (bot->GetBotAI()->AddOrder(std::move(order)))
+        {
+            if (DEBUG_BOT_ORDERS)
+                handler->PSendSysMessage("Order given: {}: pull {}", bot->GetName(), target ? target->GetName().c_str() : "unknown");
+        }
+        else
+        {
+            if (DEBUG_BOT_ORDERS)
+                handler->PSendSysMessage("Order failed: {}: pull {}", bot->GetName(), target ? target->GetName().c_str() : "unknown");
+        }
+
+        return true;
+    }
+
     static bool HandleNpcBotOrderCastCommand(ChatHandler* handler, Optional<std::string> bot_name, Optional<std::string> spell_name, Optional<std::string_view> target_token)
     {
         Player* owner = handler->GetSession()->GetPlayer();
@@ -2076,13 +2228,13 @@ public:
         }
         if (!owner->IsAlive())
         {
-            handler->GetSession()->SendNotification("You are dead");
+            handler->SendNotification("You are dead");
             handler->SetSentErrorMessage(true);
             return false;
         }
         if (owner->GetBotMgr()->IsPartyInCombat())
         {
-            handler->GetSession()->SendNotification(LANG_YOU_IN_COMBAT);
+            handler->SendNotification(LANG_YOU_IN_COMBAT);
             handler->SetSentErrorMessage(true);
             return false;
         }
@@ -2105,13 +2257,13 @@ public:
         }
         if (!owner->IsAlive())
         {
-            handler->GetSession()->SendNotification("You are dead");
+            handler->SendNotification("You are dead");
             handler->SetSentErrorMessage(true);
             return false;
         }
         if (owner->GetBotMgr()->IsPartyInCombat() && (owner->IsPvP() || owner->IsFFAPvP()))
         {
-            handler->GetSession()->SendNotification("You can't do that while in PvP combat");
+            handler->SendNotification("You can't do that while in PvP combat");
             handler->SetSentErrorMessage(true);
             return false;
         }
@@ -2443,7 +2595,7 @@ public:
         }
         if (owner->GetBotMgr()->IsPartyInCombat())
         {
-            handler->GetSession()->SendNotification(LANG_YOU_IN_COMBAT);
+            handler->SendNotification(LANG_YOU_IN_COMBAT);
             handler->SetSentErrorMessage(true);
             return false;
         }
@@ -2507,13 +2659,13 @@ public:
         }
         if (!owner->IsAlive())
         {
-            handler->GetSession()->SendNotification("You are dead");
+            handler->SendNotification("You are dead");
             handler->SetSentErrorMessage(true);
             return false;
         }
         if (owner->GetBotMgr()->IsPartyInCombat() && (owner->IsPvP() || owner->IsFFAPvP()))
         {
-            handler->GetSession()->SendNotification("You can't do that while in PvP combat");
+            handler->SendNotification("You can't do that while in PvP combat");
             handler->SetSentErrorMessage(true);
             return false;
         }
@@ -2837,6 +2989,86 @@ public:
         return true;
     }
 
+    static bool HandeNpcBotCleanUpAndRemoval(ChatHandler* handler, Creature* bot, Player const* chr/* = nullptr*/)
+    {
+        Player const* botowner = bot->GetBotOwner()->ToPlayer();
+
+        if (bot->GetBotAI()->HasRealEquipment())
+        {
+            ObjectGuid receiver =
+                botowner ? botowner->GetGUID() :
+                bot->GetBotAI()->GetBotOwnerGuid() != 0 ? ObjectGuid(HighGuid::Player, 0, bot->GetBotAI()->GetBotOwnerGuid()) :
+                chr ? chr->GetGUID() : ObjectGuid::Empty;
+
+            if (!botowner && chr && receiver != chr->GetGUID() && !sCharacterCache->HasCharacterCacheEntry(receiver))
+                receiver = chr->GetGUID();
+
+            if (receiver == ObjectGuid::Empty)
+            {
+                handler->PSendSysMessage("Cannot delete bot {} from console: has gear but no player to give it back to! Can only delete this bot in-game.", bot->GetName());
+                return false;
+            }
+            if (!bot->GetBotAI()->UnEquipAll(receiver))
+            {
+                handler->PSendSysMessage("{} is unable to unequip some gear. Please remove equips manually first!", bot->GetName());
+                return false;
+            }
+        }
+
+        if (botowner)
+            botowner->GetBotMgr()->RemoveBot(bot->GetGUID(), BOT_REMOVE_DISMISS);
+
+        return true;
+    }
+
+    static bool HandleNpcBotFreeCommand(ChatHandler* handler)
+    {
+        Player* chr = handler->GetSession()->GetPlayer();
+        Unit* ubot = chr->GetSelectedUnit();
+        if (!ubot)
+        {
+            handler->SendSysMessage(".npcbot free");
+            handler->SendSysMessage("Immediately cancels selected npcbot's ownership");
+            handler->SetSentErrorMessage(true);
+            return false;
+        }
+
+        Creature* bot = ubot->ToCreature();
+        if (!bot || !bot->IsNPCBot() || !bot->GetBotAI()->GetBotOwnerGuid() || bot->IsTempBot())
+        {
+            handler->SendSysMessage("No owned npcbot selected");
+            handler->SetSentErrorMessage(true);
+            return false;
+        }
+
+        uint32 owner_guid = bot->GetBotAI()->GetBotOwnerGuid();
+        Player const* botowner = bot->GetBotOwner()->ToPlayer();
+        if (!HandeNpcBotCleanUpAndRemoval(handler, bot, chr))
+        {
+            handler->SetSentErrorMessage(true);
+            return false;
+        }
+
+        uint8 spec = bot_ai::SelectSpecForClass(bot->GetBotClass());
+        BotDataMgr::UpdateNpcBotData(bot->GetEntry(), NPCBOT_UPDATE_SPEC, &spec);
+        uint32 roleMask = bot_ai::DefaultRolesForClass(bot->GetBotClass(), spec);
+        BotDataMgr::UpdateNpcBotData(bot->GetEntry(), NPCBOT_UPDATE_ROLES, &roleMask);
+
+        if (!botowner)
+        {
+            uint32 newOwner = 0;
+            BotDataMgr::UpdateNpcBotData(bot->GetEntry(), NPCBOT_UPDATE_OWNER, &newOwner);
+
+            if (Group* gr = bot->GetBotGroup())
+                gr->RemoveMember(bot->GetGUID());
+
+            bot->GetBotAI()->ResetBotAI(BOTAI_RESET_DISMISS);
+        }
+
+        handler->PSendSysMessage("Npcbot {} successfully freed, owner was {}", bot->GetName(), owner_guid);
+        return true;
+    }
+
     static bool HandleNpcBotDeleteCommand(ChatHandler* handler)
     {
         Player* chr = handler->GetSession()->GetPlayer();
@@ -2864,21 +3096,11 @@ public:
             return true;
         }
 
-        Player const* botowner = bot->GetBotOwner()->ToPlayer();
-
-        ObjectGuid receiver =
-            botowner ? botowner->GetGUID() :
-            bot->GetBotAI()->GetBotOwnerGuid() != 0 ? ObjectGuid(HighGuid::Player, 0, bot->GetBotAI()->GetBotOwnerGuid()) :
-            chr->GetGUID();
-        if (!bot->GetBotAI()->UnEquipAll(receiver))
+        if (!HandeNpcBotCleanUpAndRemoval(handler, bot, chr))
         {
-            handler->PSendSysMessage("{} is unable to unequip some gear. Please remove equips before deleting bot!", bot->GetName());
             handler->SetSentErrorMessage(true);
             return false;
         }
-
-        if (botowner)
-            botowner->GetBotMgr()->RemoveBot(bot->GetGUID(), BOT_REMOVE_DISMISS);
 
         bot->CombatStop();
         bot->GetBotAI()->Reset();
@@ -2912,36 +3134,18 @@ public:
 
         if (bot->GetBotAI()->IsWanderer())
         {
-            handler->SendSysMessage("Cannot delete wanderer npcbot");
-            handler->SetSentErrorMessage(true);
-            return false;
+            BotDataMgr::DespawnWandererBot(bot->GetEntry());
+            handler->PSendSysMessage("Wandering bot {} '{}' successfully deleted", bot->GetEntry(), bot->GetName());
+            return true;
         }
 
         Player* chr = !handler->IsConsole() ? handler->GetSession()->GetPlayer() : nullptr;
-        Player const* botowner = bot->GetBotOwner()->ToPlayer();
 
-        if (bot->GetBotAI()->HasRealEquipment())
+        if (!HandeNpcBotCleanUpAndRemoval(handler, const_cast<Creature*>(bot), chr))
         {
-            ObjectGuid receiver =
-                botowner ? botowner->GetGUID() :
-                bot->GetBotAI()->GetBotOwnerGuid() != 0 ? ObjectGuid(HighGuid::Player, 0, bot->GetBotAI()->GetBotOwnerGuid()) :
-                chr ? chr->GetGUID() : ObjectGuid::Empty;
-            if (receiver == ObjectGuid::Empty)
-            {
-                handler->PSendSysMessage("Cannot delete bot {} from console: has gear but no player to give it back to! Can only delete this bot in-game.", bot->GetName());
-                handler->SetSentErrorMessage(true);
-                return false;
-            }
-            if (!bot->GetBotAI()->UnEquipAll(receiver))
-            {
-                handler->PSendSysMessage("{} is unable to unequip some gear. Please remove equips before deleting bot!", bot->GetName());
-                handler->SetSentErrorMessage(true);
-                return false;
-            }
+            handler->SetSentErrorMessage(true);
+            return false;
         }
-
-        if (botowner)
-            botowner->GetBotMgr()->RemoveBot(bot->GetGUID(), BOT_REMOVE_DISMISS);
 
         const_cast<Creature*>(bot)->CombatStop();
         bot->GetBotAI()->Reset();

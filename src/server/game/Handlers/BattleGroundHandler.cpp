@@ -60,7 +60,7 @@ void WorldSession::HandleBattlemasterHelloOpcode(WorldPacket& recvData)
     if (!_player->GetBGAccessByLevel(bgTypeId))
     {
         // temp, must be gossip message...
-        SendNotification(LANG_YOUR_BG_LEVEL_REQ_ERROR);
+        ChatHandler(this).SendNotification(LANG_YOUR_BG_LEVEL_REQ_ERROR);
         return;
     }
 
@@ -291,6 +291,10 @@ void WorldSession::HandleBattlemasterJoinOpcode(WorldPacket& recvData)
         }
 
         isPremade = (grp->GetMembersCount() >= bg->GetMinPlayersPerTeam() && bgTypeId != BATTLEGROUND_RB);
+        //npcbot: check premade for bots
+        if (isPremade && !BotMgr::IsNpcBotsPremadeEnabled() && grp->GetFirstBotMember() != nullptr)
+            isPremade = false;
+        //end npcbot
         uint32 avgWaitTime = 0;
 
         GroupQueueInfo* ginfo = bgQueue.AddGroup(_player, grp, bgTypeId, bracketEntry, 0, false, isPremade, 0, 0);
@@ -497,7 +501,7 @@ void WorldSession::HandleBattleFieldPortOpcode(WorldPacket& recvData)
 
     if (_player->GetCharmGUID() || _player->IsInCombat())
     {
-        _player->GetSession()->SendNotification(LANG_YOU_IN_COMBAT);
+        ChatHandler(_player->GetSession()).SendNotification(LANG_YOU_IN_COMBAT);
         return;
     }
 
@@ -663,6 +667,9 @@ void WorldSession::HandleBattleFieldPortOpcode(WorldPacket& recvData)
 
             sScriptMgr->OnBattlegroundDesertion(_player, BG_DESERTION_TYPE_LEAVE_QUEUE);
         }
+
+        if (bg->isArena() && (bg->GetStatus() == STATUS_IN_PROGRESS || bg->GetStatus() == STATUS_WAIT_JOIN))
+            sScriptMgr->OnBattlegroundDesertion(_player, ARENA_DESERTION_TYPE_LEAVE_QUEUE);
     }
 }
 

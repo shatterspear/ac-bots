@@ -31,6 +31,8 @@
 #include "ScriptMgr.h"
 #include <unordered_map>
 
+#include "BattlegroundUtils.h"
+
 //npcbot
 //non-PCH
 #include "Creature.h"
@@ -222,7 +224,7 @@ GroupQueueInfo* BattlegroundQueue::AddGroup(Player* leader, Group* group, Battle
         SendMessageBGQueue(leader, bg, bracketEntry);
 
     //npcbot: try to queue wandering bots
-    if (!isRated && !arenaType && !arenaTeamId && !sBattlegroundMgr->isTesting())
+    if (!isRated && !isPremade && !arenaType && !arenaTeamId && !sBattlegroundMgr->isTesting())
     {
         if (!BotDataMgr::GenerateBattlegroundBots(leader, group, this, bracketEntry, ginfo))
         {
@@ -891,7 +893,7 @@ void BattlegroundQueue::BattlegroundQueueUpdate(uint32 diff, BattlegroundTypeId 
     }
 
     // get min and max players per team
-    uint32 MinPlayersPerTeam = bg_template->GetMinPlayersPerTeam();
+    uint32 MinPlayersPerTeam = GetMinPlayersPerTeam(bg_template, bracketEntry);
     uint32 MaxPlayersPerTeam = bg_template->GetMaxPlayersPerTeam();
 
     if (bg_template->isArena())
@@ -903,6 +905,10 @@ void BattlegroundQueue::BattlegroundQueueUpdate(uint32 diff, BattlegroundTypeId 
         MinPlayersPerTeam = 1;
 
     sScriptMgr->OnQueueUpdate(this, diff, bgTypeId, bracket_id, arenaType, isRated, arenaRating);
+
+    if (!sScriptMgr->OnQueueUpdateValidity(this, diff, bgTypeId, bracket_id, arenaType, isRated, arenaRating)) {
+        return;
+    }
 
     m_SelectionPools[TEAM_ALLIANCE].Init();
     m_SelectionPools[TEAM_HORDE].Init();
@@ -1123,7 +1129,7 @@ void BattlegroundQueue::BattlegroundQueueAnnouncerUpdate(uint32 diff, Battlegrou
                 _queueAnnouncementTimer[bracket_id] = -1;
 
                 auto bgName = bg_template->GetName();
-                uint32 MaxPlayers = bg_template->GetMinPlayersPerTeam() * 2;
+                uint32 MaxPlayers = GetMinPlayersPerTeam(bg_template, bracketEntry) * 2;
                 uint32 q_min_level = std::min(bracketEntry->minLevel, (uint32) 80);
                 uint32 q_max_level = std::min(bracketEntry->maxLevel, (uint32) 80);
 
@@ -1174,7 +1180,7 @@ void BattlegroundQueue::SendMessageBGQueue(Player* leader, Battleground* bg, PvP
 
     BattlegroundBracketId bracketId = bracketEntry->GetBracketId();
     auto bgName = bg->GetName();
-    uint32 MinPlayers = bg->GetMinPlayersPerTeam();
+    uint32 MinPlayers = GetMinPlayersPerTeam(bg, bracketEntry);
     uint32 MaxPlayers = MinPlayers * 2;
     uint32 q_min_level = std::min(bracketEntry->minLevel, (uint32)80);
     uint32 q_max_level = std::min(bracketEntry->maxLevel, (uint32)80);
@@ -1238,7 +1244,7 @@ void BattlegroundQueue::SendJoinMessageArenaQueue(Player* leader, GroupQueueInfo
 
         BattlegroundBracketId bracketId = bracketEntry->GetBracketId();
         auto bgName = bg->GetName();
-        auto arenatype = Acore::StringFormat("%uv%u", ginfo->ArenaType, ginfo->ArenaType);
+        auto arenatype = Acore::StringFormat("{}v{}", ginfo->ArenaType, ginfo->ArenaType);
         uint32 playersNeed = ArenaTeam::GetReqPlayersForType(ginfo->ArenaType);
         uint32 q_min_level = std::min(bracketEntry->minLevel, (uint32)80);
         uint32 q_max_level = std::min(bracketEntry->maxLevel, (uint32)80);
@@ -1492,6 +1498,9 @@ bool BGQueueRemoveEvent::Execute(uint64 /*e_time*/, uint32 /*p_time*/)
 
                 sScriptMgr->OnBattlegroundDesertion(player, BG_DESERTION_TYPE_NO_ENTER_BUTTON);
             }
+
+            if (bg && bg->isArena() && (bg->GetStatus() == STATUS_IN_PROGRESS || bg->GetStatus() == STATUS_WAIT_JOIN))
+                sScriptMgr->OnBattlegroundDesertion(player, ARENA_DESERTION_TYPE_NO_ENTER_BUTTON);
 
             LOG_DEBUG("bg.battleground", "Battleground: removing player {} from bg queue for instance {} because of not pressing enter battle in time.", player->GetGUID().ToString(), m_BgInstanceGUID);
 

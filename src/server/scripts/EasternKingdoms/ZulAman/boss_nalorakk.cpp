@@ -89,6 +89,7 @@ struct boss_nalorakk : public BossAI
 {
     boss_nalorakk(Creature* creature) : BossAI(creature, DATA_NALORAKKEVENT)
     {
+        _phase = PHASE_SEND_GUARDS_1;
         _ranIntro = false;
         _active = true;
         creature->SetReactState(REACT_PASSIVE);
@@ -345,6 +346,14 @@ struct boss_nalorakk : public BossAI
         }
         return true;
     }
+
+    void JustDied(Unit* killer) override
+    {
+        BossAI::JustDied(killer);
+        Talk(SAY_DEATH);
+        instance->SetData(DATA_NALORAKKEVENT, DONE);
+    }
+
 private:
     uint8 _phase;
     bool _ranIntro;

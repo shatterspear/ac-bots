@@ -351,7 +351,7 @@ public:
         void KilledUnit(Unit* u) override { bot_ai::KilledUnit(u); }
         void EnterEvadeMode(EvadeReason why = EVADE_REASON_OTHER) override { bot_ai::EnterEvadeMode(why); }
         void MoveInLineOfSight(Unit* u) override { bot_ai::MoveInLineOfSight(u); }
-        void JustDied(Unit* u) override { UnsummonAll(); removeShapeshiftForm(); bot_ai::JustDied(u); }
+        void JustDied(Unit* u) override { UnsummonAll(false); removeShapeshiftForm(); bot_ai::JustDied(u); }
 
         bool removeShapeshiftForm() override
         {
@@ -2173,7 +2173,7 @@ public:
             }
         }
 
-        void UnsummonAll() override
+        void UnsummonAll(bool /*savePets*/ = true) override
         {
             UnsummonWolves();
 
@@ -2198,7 +2198,7 @@ public:
             {
                 LOG_ERROR("entities.player", "OnBotDespawn(): Shaman bot {} received NULL", me->GetName().c_str());
                 ASSERT(false);
-                //UnsummonAll();
+                //UnsummonAll(false);
                 return;
             }
 
@@ -2331,7 +2331,7 @@ public:
             summon->SetPvP(me->IsPvP());
             summon->SetOwnerGUID(master->GetGUID());
             summon->SetControlledByPlayer(!IAmFree());
-            summon->SetUnitFlag(UNIT_FLAG_PLAYER_CONTROLLED);
+            //summon->SetUnitFlag(UNIT_FLAG_PLAYER_CONTROLLED);
             // totem will claim master's summon slot
             // free it to avoid conflicts with other shaman bots and master
             // if master is a shaman his totem will despawn
@@ -2416,7 +2416,7 @@ public:
 
         void Reset() override
         {
-            UnsummonAll();
+            UnsummonAll(false);
             for (uint8 i = 0; i != MAX_WOLVES; ++i)
                 _wolves[i] = ObjectGuid::Empty;
             for (uint8 i = 0; i != MAX_TOTEMS; ++i)

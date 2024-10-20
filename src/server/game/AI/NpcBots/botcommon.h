@@ -91,6 +91,9 @@ enum BotCommonValues
 //COMMON AOE TRIGGERS
     CREATURE_FOCUS_FIRE_N               = 18374,
     CREATURE_FOCUS_FIRE_H               = 20308,
+    CREATURE_MT_PHOENIX                 = 24674,
+    CREATURE_MT_ARCANE_SPHERE_N         = 24708,
+    CREATURE_MT_ARCANE_SPHERE_H         = 25543,
     CREATURE_ZA_FIRE_BOMB               = 23920,
     CREATURE_UK_SHADOW_AXE_N            = 23997,
     CREATURE_UK_SHADOW_AXE_H            = 31835,
@@ -157,6 +160,7 @@ enum BotCommonValues
     BOTAI_MISC_PET_AVAILABLE_11,
     BOTAI_MISC_WEAPON_SPEC,
     BOTPETAI_MISC_DURATION,
+    BOTPETAI_MISC_DURATION_MAX,
     BOTPETAI_MISC_MAXLEVEL,
     BOTPETAI_MISC_FIXEDLEVEL,
     BOTPETAI_MISC_CARRY,
@@ -223,7 +227,7 @@ enum BotStances
     DRUID_TREE_FORM,
     DRUID_TRAVEL_FORM,
     DRUID_AQUATIC_FORM,
-    //DRUID_FLIGHT_FORM //NYI
+    DRUID_FLIGHT_FORM
 };
 
 enum BotRoles : uint32
@@ -566,7 +570,10 @@ constexpr size_t MAX_SEND_POINTS = 5u;
 enum BotOrderTypes
 {
     BOT_ORDER_NONE          = 0,
-    BOT_ORDER_SPELLCAST     = 1
+    BOT_ORDER_SPELLCAST     = 1,
+    BOT_ORDER_PULL          = 2,
+
+    BOT_ORDER_END
 };
 constexpr bool DEBUG_BOT_ORDERS = false;
 constexpr size_t MAX_BOT_ORDERS_QUEUE_SIZE = 3u;
