@@ -204,6 +204,10 @@ public:
     static void Update(uint32 diff);
 
     static void LoadNpcBots(bool spawn = true);
+    static Creature* SpawnNpcBot(uint32 entry);
+    static void DespawnNpcBot(uint32 entry);
+    static void SpawnOwnedNpcBots(Player* owner);
+    static void DespawnOwnedNpcBots(ObjectGuid ownerGuid);
     static void LoadNpcBotGroupData();
     static void LoadNpcBotGearStorage();
     static void LoadNpcBotGearSets();
@@ -235,6 +239,7 @@ public:
     static void GetNPCBotGuidsByOwner(std::vector<ObjectGuid> &guids_vec, ObjectGuid owner_guid, bool count_shared = false);
     static ObjectGuid GetNPCBotGuid(uint32 entry);
     static std::vector<uint32> GetExistingNPCBotIds();
+    static std::vector<uint32> GetHireableNPCBotIds();
     static uint8 GetOwnedBotsCount(ObjectGuid owner_guid, uint32 class_mask = 0, bool count_shared = false);
     static uint8 GetAccountBotsCount(uint32 account_id);
 

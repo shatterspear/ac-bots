@@ -5173,6 +5173,15 @@ NpcBot.Limit.Raid    = 1
 
 NpcBot.HideSpawns = 1
 
+#    NpcBot.LazySpawn
+#        Description: Loads NPCBot database metadata at startup without spawning regular bots.
+#                     Owned bots spawn when their owner logs in, free bots spawn when hired,
+#                     and owned bots despawn when their owner logs out.
+#        Default:     0 - (Disabled, spawn all regular bots during server startup)
+#                     1 - (Enabled)
+
+NpcBot.LazySpawn = 0
+
 #
 #    NpcBot.Cost.Hire
 #    NpcBot.Cost.Rent

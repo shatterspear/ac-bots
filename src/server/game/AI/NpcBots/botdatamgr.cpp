@@ -64,6 +64,7 @@ static std::map<uint8, std::set<uint32>> _spareBotIdsPerClassMap;
 static CreatureTemplateContainer _botsExtraCreatureTemplates;
 static std::unordered_map<uint32, EquipmentInfo const*> _botsExtraCreatureEquipmentTemplates;
 static std::set<uint32> _botsExtraCreaturesToDespawn;
+static std::set<uint32> _regularBotsToDespawn;
 static std::list<std::pair<uint32, WanderNode const*>> _botsWanderCreaturesToSpawn;
 
 static ItemPerBotClassPerBotCategoryMap _botsExtraCreatureSortedGear;
@@ -846,6 +847,21 @@ void BotDataMgr::Update(uint32 diff)
         }
     }
 
+    while (!_regularBotsToDespawn.empty())
+    {
+        uint32 entry = *_regularBotsToDespawn.begin();
+        _regularBotsToDespawn.erase(_regularBotsToDespawn.begin());
+
+        Creature* bot = const_cast<Creature*>(FindBot(entry));
+        if (!bot)
+            continue;
+
+        BotMgr::CleanupsBeforeBotDelete(bot);
+        bot->GetBotAI()->canUpdate = false;
+        if (Map* map = bot->FindMap())
+            map->AddObjectToRemoveList(bot);
+    }
+
     if (!_botsExtraCreaturesToDespawn.empty())
     {
         BOT_LOG_DEBUG("npcbots", "Bots to despawn: {}", uint32(_botsExtraCreaturesToDespawn.size()));
@@ -1037,9 +1053,6 @@ void BotDataMgr::LoadNpcBots(bool spawn)
     {
         uint32 botcounter = 0;
         uint32 datacounter = 0;
-        std::set<uint32> botgrids;
-        QueryResult infores;
-        CreatureTemplate const* proto;
         entryList.reserve(result->GetRowCount());
 
         do
@@ -1110,57 +1123,10 @@ void BotDataMgr::LoadNpcBots(bool spawn)
         if (spawn)
         {
             for (uint32 entry : entryList)
-            {
-                proto = sObjectMgr->GetCreatureTemplate(entry);
-                //                                     1     2    3           4           5           6
-                infores = WorldDatabase.Query("SELECT guid, map, position_x, position_y, position_z, orientation FROM creature WHERE id = {}", entry);
-                if (!infores)
-                {
-                    BOT_LOG_ERROR("server.loading", "Cannot spawn npcbot {} (id: {}), not found in `creature` table!", proto->Name.c_str(), entry);
-                    continue;
-                }
+                if (SpawnNpcBot(entry))
+                    ++botcounter;
 
-                field = infores->Fetch();
-                uint32 tableGuid = field[0].Get<uint32>();
-                uint32 mapId = uint32(field[1].Get<uint16>());
-                float pos_x = field[2].Get<float>();
-                float pos_y = field[3].Get<float>();
-                float pos_z = field[4].Get<float>();
-                float ori = field[5].Get<float>();
-
-                CellCoord c = Bcore::ComputeCellCoord(pos_x, pos_y);
-                GridCoord g = Bcore::ComputeGridCoord(pos_x, pos_y);
-                ASSERT(c.IsCoordValid(), "Invalid Cell coord!");
-                ASSERT(g.IsCoordValid(), "Invalid Grid coord!");
-                Map* map = sMapMgr->CreateBaseMap(mapId);
-                Position spawnPos(pos_x, pos_y, pos_z, ori);
-                Creature* bot = new Creature();
-                if (!bot->LoadBotCreatureFromDB(tableGuid, map, false, false, entry, &spawnPos))
-                {
-                    delete bot;
-                    BOT_LOG_FATAL("server.loading", "Cannot load npcbot {} from DB!", entry);
-                    ABORT();
-                }
-
-                if (!bot->AIM_Initialize())
-                {
-                    delete bot;
-                    BOT_LOG_FATAL("server.loading", "Cannot initialize npcbot {} AI!", entry);
-                    ABORT();
-                }
-
-                if (!bot->IsAlive())
-                {
-                    BOT_LOG_WARN("server.loading", "bot {} is dead, respawning!", entry);
-                    bot->setDeathState(DeathState::JustRespawned);
-                }
-
-                BOT_LOG_DEBUG("server.loading", ">> Spawned npcbot {} (id: {}, map: {}, grid: {}, cell: {})", proto->Name.c_str(), entry, mapId, g.GetId(), c.GetId());
-                botgrids.insert(g.GetId());
-                ++botcounter;
-            }
-
-            BOT_LOG_INFO("server.loading", ">> Spawned {} npcbot(s) within {} grid(s) in {} ms", botcounter, uint32(botgrids.size()), GetMSTimeDiffToNow(botoldMSTime));
+            BOT_LOG_INFO("server.loading", ">> Spawned {} npcbot(s) in {} ms", botcounter, GetMSTimeDiffToNow(botoldMSTime));
         }
     }
     else
@@ -1200,6 +1166,75 @@ void BotDataMgr::LoadNpcBots(bool spawn)
     allBotsLoaded = true;
 }
 
+Creature* BotDataMgr::SpawnNpcBot(uint32 entry)
+{
+    _regularBotsToDespawn.erase(entry);
+
+    if (Creature const* existing = FindBot(entry))
+        return const_cast<Creature*>(existing);
+
+    CreatureTemplate const* proto = sObjectMgr->GetCreatureTemplate(entry);
+    if (!proto || !_botsData.contains(entry))
+        return nullptr;
+
+    QueryResult result = WorldDatabase.Query("SELECT guid, map, position_x, position_y, position_z, orientation FROM creature WHERE id = {}", entry);
+    if (!result)
+    {
+        BOT_LOG_ERROR("server.loading", "Cannot spawn npcbot {} (id: {}), not found in `creature` table!", proto->Name.c_str(), entry);
+        return nullptr;
+    }
+
+    Field* field = result->Fetch();
+    uint32 tableGuid = field[0].Get<uint32>();
+    uint32 mapId = uint32(field[1].Get<uint16>());
+    Position spawnPos(field[2].Get<float>(), field[3].Get<float>(), field[4].Get<float>(), field[5].Get<float>());
+    Map* map = sMapMgr->CreateBaseMap(mapId);
+    Creature* bot = new Creature();
+    if (!bot->LoadBotCreatureFromDB(tableGuid, map, false, false, entry, &spawnPos) || !bot->AIM_Initialize())
+    {
+        delete bot;
+        BOT_LOG_ERROR("server.loading", "Cannot initialize npcbot {} from DB!", entry);
+        return nullptr;
+    }
+
+    if (!bot->IsAlive())
+        bot->setDeathState(DeathState::JustRespawned);
+
+    BOT_LOG_DEBUG("server.loading", ">> Spawned npcbot {} (id: {}, map: {})", proto->Name.c_str(), entry, mapId);
+    return bot;
+}
+
+void BotDataMgr::DespawnNpcBot(uint32 entry)
+{
+    if (FindBot(entry))
+        _regularBotsToDespawn.insert(entry);
+}
+
+void BotDataMgr::SpawnOwnedNpcBots(Player* owner)
+{
+    uint32 ownerLow = owner->GetGUID().GetCounter();
+    for (auto const& [entry, data] : _botsData)
+    {
+        if (data.owner == ownerLow)
+        {
+            if (Creature* bot = SpawnNpcBot(entry))
+            {
+                owner->GetBotMgr()->AddBot(bot);
+                if (Group* group = owner->GetGroup(); group && group->IsMember(bot->GetGUID()))
+                    bot->SetBotGroup(group, group->GetMemberGroup(bot->GetGUID()));
+            }
+        }
+    }
+}
+
+void BotDataMgr::DespawnOwnedNpcBots(ObjectGuid ownerGuid)
+{
+    uint32 ownerLow = ownerGuid.GetCounter();
+    for (auto const& [entry, data] : _botsData)
+        if (data.owner == ownerLow)
+            DespawnNpcBot(entry);
+}
+
 void BotDataMgr::LoadNpcBotGroupData()
 {
     BOT_LOG_INFO("server.loading", "Loading NPCBot group members...");
@@ -1233,7 +1268,8 @@ void BotDataMgr::LoadNpcBotGroupData()
         if (Group* group = sGroupMgr->GetGroupByGUID(fields[0].Get<uint32>()))
         {
             group->LoadCreatureMemberFromDB(creature_id, fields[2].Get<uint8>(), subgroup, fields[4].Get<uint8>());
-            const_cast<Creature*>(ASSERT_NOTNULL(BotDataMgr::FindBot(creature_id)))->SetBotGroup(group, subgroup);
+            if (Creature* bot = const_cast<Creature*>(BotDataMgr::FindBot(creature_id)))
+                bot->SetBotGroup(group, subgroup);
         }
         else
             BOT_LOG_ERROR("misc", "BotDataMgr::LoadNpcBotGroupData: Consistency failed, can't find group (storage id: {})", fields[0].Get<uint32>());
@@ -3391,6 +3427,10 @@ ObjectGuid BotDataMgr::GetNPCBotGuid(uint32 entry)
             return bot->GetGUID();
     }
 
+    for (auto const& [spawnId, creatureData] : sObjectMgr->GetAllCreatureData())
+        if (creatureData.id == entry)
+            return ObjectGuid::Create<HighGuid::Unit>(entry, spawnId);
+
     return ObjectGuid::Empty;
 }
 
@@ -3404,6 +3444,17 @@ std::vector<uint32> BotDataMgr::GetExistingNPCBotIds()
         existing_ids.push_back(bot_id);
 
     return existing_ids;
+}
+
+std::vector<uint32> BotDataMgr::GetHireableNPCBotIds()
+{
+    ASSERT(AllBotsLoaded());
+
+    std::vector<uint32> ids;
+    for (auto const& [entry, data] : _botsData)
+        if (!data.owner)
+            ids.push_back(entry);
+    return ids;
 }
 
 uint8 BotDataMgr::GetOwnedBotsCount(ObjectGuid owner_guid, uint32 class_mask, bool count_shared)
@@ -4210,10 +4261,29 @@ public:
     }
 };
 
+class AC_GAME_API BotDataMgrPlayerScript : public PlayerScript
+{
+public:
+    BotDataMgrPlayerScript() : PlayerScript("BotDataMgrPlayerScript") { }
+
+    void OnPlayerLogin(Player* player) override
+    {
+        if (BotCfg::IsLazySpawnEnabled())
+            BotDataMgr::SpawnOwnedNpcBots(player);
+    }
+
+    void OnPlayerBeforeLogout(Player* player) override
+    {
+        if (BotCfg::IsLazySpawnEnabled())
+            BotDataMgr::DespawnOwnedNpcBots(player->GetGUID());
+    }
+};
+
 void AddSC_botdatamgr_scripts()
 {
     new WanderingBotXpGainFormulaScript();
     new BotDataMgrShutdownScript();
+    new BotDataMgrPlayerScript();
 }
 
 #ifdef _MSC_VER

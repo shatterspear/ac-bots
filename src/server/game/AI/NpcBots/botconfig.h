@@ -58,6 +58,7 @@ public:
     static bool EnableWanderingUntargetNpcQuestgiver();
     static bool EnableWanderingUntargetNpcFlightmaster();
     static bool HideBotSpawns();
+    static bool IsLazySpawnEnabled();
     static bool IsEnrageOnDimissEnabled();
     static bool IsBotStatsLimitsEnabled();
     static bool IsPvPEnabled();

@@ -1,4 +1,34 @@
+# syntax=docker/dockerfile:1.7
+
 ARG UBUNTU_VERSION=24.04 # lts
+
+FROM alpine:3.21 AS shatterspear-assets
+
+ARG ALE_REPOSITORY=git@github.com:shatterspear/mod-eluna.git
+ARG INSTANCE_RESET_REPOSITORY=git@github.com:shatterspear/mod-instance-reset.git
+ARG TRANSMOG_REPOSITORY=git@github.com:shatterspear/mod-transmog.git
+ARG CONFIG_REPOSITORY=git@github.com:shatterspear/ac-configs.git
+ARG LUA_REPOSITORY=git@github.com:shatterspear/lua_scripts.git
+ARG DBC_REPOSITORY=git@github.com:shatterspear/dbc.git
+
+RUN apk add --no-cache git openssh-client \
+    && mkdir -p -m 0700 /root/.ssh \
+    && ssh-keyscan github.com > /root/.ssh/known_hosts
+
+RUN --mount=type=secret,id=github_ssh_key,required=true \
+    install -m 0600 /run/secrets/github_ssh_key /root/.ssh/id_ed25519 \
+    && git clone --depth 1 "$ALE_REPOSITORY" /assets/mod-ale \
+    && git clone --depth 1 "$INSTANCE_RESET_REPOSITORY" /assets/mod-instance-reset \
+    && git clone --depth 1 "$TRANSMOG_REPOSITORY" /assets/mod-transmog \
+    && git clone --depth 1 "$CONFIG_REPOSITORY" /assets/configs \
+    && git clone --depth 1 "$LUA_REPOSITORY" /assets/lua_scripts \
+    && git clone --depth 1 "$DBC_REPOSITORY" /assets/dbc \
+    && rm -f /root/.ssh/id_ed25519 \
+    && find /assets/configs -type f -name '*.bac' -delete \
+    && find /assets/configs -type f -name '*.conf' -exec sed -i -E \
+       '/^[[:space:]]*(LoginDatabaseInfo|WorldDatabaseInfo|CharacterDatabaseInfo|MySQLExecutable|DataDir)[[:space:]]*=/d' '{}' + \
+    && rm -f /assets/lua_scripts/debug.log \
+    && find /assets -name .git -type d -prune -exec rm -rf '{}' +
 
 # This target lays out the general directory skeleton for AzerothCore,
 # This target isn't intended to be directly used
@@ -75,6 +105,9 @@ COPY conf /azerothcore/conf
 COPY deps /azerothcore/deps
 COPY src /azerothcore/src
 COPY modules /azerothcore/modules
+COPY --from=shatterspear-assets /assets/mod-ale /azerothcore/modules/mod-ale
+COPY --from=shatterspear-assets /assets/mod-instance-reset /azerothcore/modules/mod-instance-reset
+COPY --from=shatterspear-assets /assets/mod-transmog /azerothcore/modules/mod-transmog
 
 ARG CACHEBUST=1
 
@@ -125,6 +158,11 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /azerothcore/env/dist/etc/ /azerothcore/env/ref/etc
+COPY --from=shatterspear-assets /assets/configs /tmp/shatterspear-configs
+COPY apps/docker/merge-custom-configs.sh /tmp/merge-custom-configs.sh
+
+RUN bash /tmp/merge-custom-configs.sh /azerothcore/env/ref/etc /tmp/shatterspear-configs \
+    && rm -rf /tmp/shatterspear-configs /tmp/merge-custom-configs.sh
 
 VOLUME /azerothcore/env/dist/etc
 
@@ -186,6 +224,10 @@ COPY --chown=$DOCKER_USER:$DOCKER_USER \
      --from=build \
      /azerothcore/env/dist/bin/worldserver /azerothcore/env/dist/bin/worldserver
 
+COPY --chown=$DOCKER_USER:$DOCKER_USER \
+     --from=shatterspear-assets \
+     /assets/lua_scripts /azerothcore/env/dist/bin/lua_scripts
+
 VOLUME /azerothcore/env/dist/etc
 
 CMD ["worldserver"]
@@ -207,6 +249,18 @@ COPY --chown=$DOCKER_USER:$DOCKER_USER \
 
 COPY --chown=$DOCKER_USER:$DOCKER_USER \
     modules modules
+
+COPY --chown=$DOCKER_USER:$DOCKER_USER \
+     --from=shatterspear-assets \
+     /assets/mod-ale /azerothcore/modules/mod-ale
+
+COPY --chown=$DOCKER_USER:$DOCKER_USER \
+     --from=shatterspear-assets \
+     /assets/mod-instance-reset /azerothcore/modules/mod-instance-reset
+
+COPY --chown=$DOCKER_USER:$DOCKER_USER \
+     --from=shatterspear-assets \
+     /assets/mod-transmog /azerothcore/modules/mod-transmog
 
 COPY --chown=$DOCKER_USER:$DOCKER_USER\
      --from=build \
@@ -241,12 +295,15 @@ RUN userdel --remove ubuntu \
   && chown -R "$DOCKER_USER:$DOCKER_USER" /azerothcore
 
 COPY --chown=$DOCKER_USER:$DOCKER_USER apps apps
+COPY --chown=$DOCKER_USER:$DOCKER_USER \
+     --from=shatterspear-assets \
+     /assets/dbc /azerothcore/custom-dbc
 
 VOLUME /azerothcore/env/dist/data
 
 USER $DOCKER_USER
 
-CMD ["bash",  "-c", "source /azerothcore/apps/installer/includes/functions.sh && inst_download_client_data" ]
+CMD ["bash", "-c", "source /azerothcore/apps/installer/includes/functions.sh && inst_download_client_data && cp -a /azerothcore/custom-dbc/. \"$DATAPATH/dbc/\""]
 
 ##################
 # Map Extractors #

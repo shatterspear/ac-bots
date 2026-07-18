@@ -79,6 +79,7 @@ static bool _enableNpcBotsPremade;
 static bool _limitNpcBotsDungeons;
 static bool _limitNpcBotsRaids;
 static bool _hideSpawns;
+static bool _lazySpawn;
 /*static*/bool _botPvP;
 static bool _botMovementFoodInterrupt;
 static bool _filterRaces;
@@ -384,6 +385,7 @@ private:
         _limitNpcBotsDungeons           = sConfigMgr->GetBoolDefault("NpcBot.Limit.Dungeon", true);
         _limitNpcBotsRaids              = sConfigMgr->GetBoolDefault("NpcBot.Limit.Raid", true);
         _hideSpawns                     = sConfigMgr->GetBoolDefault("NpcBot.HideSpawns", false);
+        _lazySpawn                      = sConfigMgr->GetBoolDefault("NpcBot.LazySpawn", false);
         _botInfoPacketsLimit            = sConfigMgr->GetIntDefault("NpcBot.InfoPacketsLimit", -1);
         _npcBotsCostHire                = sConfigMgr->GetIntDefault("NpcBot.Cost.Hire", 1000000);
         _npcBotsCostRent                = sConfigMgr->GetIntDefault("NpcBot.Cost.Rent", 0);
@@ -982,6 +984,10 @@ bool BotCfg::EnableWanderingUntargetNpcFlightmaster()
 bool BotCfg::HideBotSpawns()
 {
     return _hideSpawns;
+}
+bool BotCfg::IsLazySpawnEnabled()
+{
+    return _lazySpawn;
 }
 bool BotCfg::IsEnrageOnDimissEnabled()
 {

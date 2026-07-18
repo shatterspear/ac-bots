@@ -9,6 +9,7 @@
 #include "Chat.h"
 #include "Creature.h"
 #include "Log.h"
+#include "ObjectMgr.h"
 #include "Player.h"
 #include "RaceMgr.h"
 #include "ScriptedGossip.h"
@@ -52,6 +53,46 @@ uint32 GetRaceTextId(uint8 race)
         case RACE_DRAENEI:       return BOT_TEXT_RACE_DRAENEI;
         default:                 return BOT_TEXT_RACE_UNKNOWN;
     }
+}
+
+struct HireableBot
+{
+    uint32 entry;
+    uint8 botclass;
+    uint8 race;
+    uint8 gender;
+    std::string name;
+};
+
+std::vector<HireableBot> GetHireableBots(Player const* player)
+{
+    std::vector<HireableBot> bots;
+    for (uint32 entry : BotDataMgr::GetHireableNPCBotIds())
+    {
+        NpcBotExtras const* extras = BotDataMgr::SelectNpcBotExtras(entry);
+        NpcBotAppearanceData const* appearance = BotDataMgr::SelectNpcBotAppearance(entry);
+        CreatureTemplate const* creatureTemplate = sObjectMgr->GetCreatureTemplate(entry);
+        if (!extras || !creatureTemplate)
+            continue;
+
+        if (Creature const* liveBot = BotDataMgr::FindBot(entry))
+            if (!liveBot->IsAlive() || liveBot->IsTempBot() || liveBot->IsSummon() || liveBot->IsWandererBot() ||
+                liveBot->GetBotAI()->GetBotOwnerGuid() || liveBot->HasAura(BERSERK))
+                continue;
+
+        if (BotCfg::FilterRaces() && extras->bclass < BOT_CLASS_EX_START && extras->race)
+        {
+            uint32 raceMask = 1u << (extras->race - 1);
+            if ((raceMask & sRaceMgr->GetPlayableRaceMask()) &&
+                !(raceMask & ((player->GetRaceMask() & sRaceMgr->GetAllianceRaceMask()) ?
+                    sRaceMgr->GetAllianceRaceMask() : sRaceMgr->GetHordeRaceMask())))
+                continue;
+        }
+
+        bots.push_back({ entry, extras->bclass, extras->race,
+            appearance ? appearance->gender : static_cast<uint8>(GENDER_MALE), creatureTemplate->Name });
+    }
+    return bots;
 }
 }
 
@@ -134,19 +175,8 @@ public:
                     uint8 availCount = 0;
                     std::array<uint32, BOT_CLASS_END> npcbot_count_per_class{ 0 };
 
-                    {
-                        std::shared_lock lock(*BotDataMgr::GetLock());
-                        for (Creature const* bot : BotDataMgr::GetExistingNPCBots())
-                        {
-                            if (!bot->IsAlive() || bot->IsTempBot() || bot->IsSummon() || bot->IsWandererBot() || bot->GetBotAI()->GetBotOwnerGuid() || bot->HasAura(BERSERK))
-                                continue;
-                            if (BotCfg::FilterRaces() && bot->GetBotClass() < BOT_CLASS_EX_START && (bot->GetRaceMask() & sRaceMgr->GetPlayableRaceMask()) &&
-                                !(bot->GetRaceMask() & ((player->GetRaceMask() & sRaceMgr->GetAllianceRaceMask()) ? sRaceMgr->GetAllianceRaceMask() : sRaceMgr->GetHordeRaceMask())))
-                                continue;
-
-                            ++npcbot_count_per_class[bot->GetBotClass()];
-                        }
-                    }
+                    for (HireableBot const& bot : GetHireableBots(player))
+                        ++npcbot_count_per_class[bot.botclass];
 
                     for (uint8 botclass = BOT_CLASS_WARRIOR; botclass < BOT_CLASS_END; ++botclass)
                     {
@@ -223,20 +253,9 @@ public:
 
                     std::map<uint8, uint32> raceCounts;
 
-                    {
-                        std::shared_lock lock(*BotDataMgr::GetLock());
-                        for (Creature const* bot : BotDataMgr::GetExistingNPCBots())
-                        {
-                            bot_ai const* ai = bot->GetBotAI();
-                            if (bot->GetBotClass() != botclass || !bot->IsAlive() || ai->IsTempBot() || bot->IsWandererBot() || bot->IsSummon() || ai->GetBotOwnerGuid() || bot->HasAura(BERSERK))
-                                continue;
-                            if (BotCfg::FilterRaces() && botclass < BOT_CLASS_EX_START && (bot->GetRaceMask() & sRaceMgr->GetPlayableRaceMask()) &&
-                                !(bot->GetRaceMask() & ((player->GetRaceMask() & sRaceMgr->GetAllianceRaceMask()) ? sRaceMgr->GetAllianceRaceMask() : sRaceMgr->GetHordeRaceMask())))
-                                continue;
-
-                            ++raceCounts[bot->GetRace()];
-                        }
-                    }
+                    for (HireableBot const& bot : GetHireableBots(player))
+                        if (bot.botclass == botclass)
+                            ++raceCounts[bot.race];
 
                     for (auto const& [race, count] : raceCounts)
                     {
@@ -260,18 +279,9 @@ public:
                     std::array<uint32, GENDER_NONE> genderCounts{};
 
                     subMenu = true;
-                    {
-                        std::shared_lock lock(*BotDataMgr::GetLock());
-                        for (Creature const* bot : BotDataMgr::GetExistingNPCBots())
-                        {
-                            bot_ai const* ai = bot->GetBotAI();
-                            if (bot->GetBotClass() != botclass || bot->GetRace() != race || !bot->IsAlive() || ai->IsTempBot() ||
-                                bot->IsWandererBot() || bot->IsSummon() || ai->GetBotOwnerGuid() || bot->HasAura(BERSERK))
-                                continue;
-                            if (bot->GetGender() < GENDER_NONE)
-                                ++genderCounts[bot->GetGender()];
-                        }
-                    }
+                    for (HireableBot const& bot : GetHireableBots(player))
+                        if (bot.botclass == botclass && bot.race == race && bot.gender < GENDER_NONE)
+                            ++genderCounts[bot.gender];
 
                     if (genderCounts[GENDER_MALE])
                     {
@@ -304,24 +314,18 @@ public:
                     uint8 availCount = 0;
 
                     subMenu = true;
+                    for (HireableBot const& bot : GetHireableBots(player))
                     {
-                        std::shared_lock lock(*BotDataMgr::GetLock());
-                        for (Creature const* bot : BotDataMgr::GetExistingNPCBots())
-                        {
-                            bot_ai const* ai = bot->GetBotAI();
-                            if (bot->GetBotClass() != botclass || bot->GetRace() != race || bot->GetGender() != gender ||
-                                !bot->IsAlive() || ai->IsTempBot() || bot->IsWandererBot() || bot->IsSummon() ||
-                                ai->GetBotOwnerGuid() || bot->HasAura(BERSERK))
-                                continue;
+                        if (bot.botclass != botclass || bot.race != race || bot.gender != gender)
+                            continue;
 
-                            std::ostringstream confirmation;
-                            confirmation << bot_ai::LocalizedNpcText(player, BOT_TEXT_BOTGIVER_WISH_TO_HIRE_) << bot->GetName() << '?';
-                            player->PlayerTalkClass->GetGossipMenu().AddMenuItem(-1, GOSSIP_ICON_TALK, bot->GetName(),
-                                HIRE_ENTRY, GOSSIP_ACTION_INFO_DEF + bot->GetEntry(), confirmation.str(), cost, false);
+                        std::ostringstream confirmation;
+                        confirmation << bot_ai::LocalizedNpcText(player, BOT_TEXT_BOTGIVER_WISH_TO_HIRE_) << bot.name << '?';
+                        player->PlayerTalkClass->GetGossipMenu().AddMenuItem(-1, GOSSIP_ICON_TALK, bot.name,
+                            HIRE_ENTRY, GOSSIP_ACTION_INFO_DEF + bot.entry, confirmation.str(), cost, false);
 
-                            if (++availCount >= BOT_GOSSIP_MAX_ITEMS - 1)
-                                break;
-                        }
+                        if (++availCount >= BOT_GOSSIP_MAX_ITEMS - 1)
+                            break;
                     }
 
                     if (availCount == 0)
@@ -335,6 +339,8 @@ public:
                 {
                     uint32 entry = action - GOSSIP_ACTION_INFO_DEF;
                     Creature const* bot = BotDataMgr::FindBot(entry);
+                    if (!bot && BotCfg::IsLazySpawnEnabled())
+                        bot = BotDataMgr::SpawnNpcBot(entry);
                     if (!bot)
                     {
                         //possible but still
@@ -358,6 +364,8 @@ public:
 
                     if (player->HaveBot() && player->GetBotMgr()->GetBot(bot->GetGUID()))
                         WhisperTo(player, me, bot_ai::LocalizedNpcText(player, BOT_TEXT_BOTGIVER_HIRESUCCESS).c_str());
+                    else if (BotCfg::IsLazySpawnEnabled() && !BotDataMgr::SelectNpcBotData(entry)->owner)
+                        BotDataMgr::DespawnNpcBot(entry);
 
                     break;
                 }

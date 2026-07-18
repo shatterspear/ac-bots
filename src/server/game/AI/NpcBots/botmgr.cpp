@@ -71,9 +71,10 @@ void BotMgr::Initialize()
     BotCfg::ReloadConfig();
     BotLogger::Log(NPCBOT_LOG_SYSTEM_START, uint32(0), std::string_view{ GitRevision::GetFileVersionStr() }.substr(0, MAX_BOT_LOG_PARAM_LENGTH));
 
-    BotDataMgr::LoadNpcBots();
+    BotDataMgr::LoadNpcBots(!BotCfg::IsLazySpawnEnabled());
     BotDataMgr::LoadWanderMap();
-    BotDataMgr::GenerateWanderingBots();
+    if (!BotCfg::IsLazySpawnEnabled())
+        BotDataMgr::GenerateWanderingBots();
     BotDataMgr::CreateGeneratedBotsSortedGear();
     BotDataMgr::LoadNpcBotGroupData();
     BotDataMgr::LoadNpcBotGearStorage();
