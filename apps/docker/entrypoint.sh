@@ -5,6 +5,7 @@ CONF_DIR="${CONF_DIR:-/azerothcore/env/dist/etc}"
 LOGS_DIR="${LOGS_DIR:-/azerothcore/env/dist/logs}"
 TEMP_DIR="${TEMP_DIR:-/azerothcore/env/dist/temp}"
 RUN_USER="${ACORE_RUN_USER:-acore}"
+BOT_RENAME_SCHEMA="/azerothcore/data/sql/custom/db_world/2026_07_19_00_ss_bot_rename_requests.sql"
 
 # Dokploy volumes can be created as root even when the image contents are
 # owned by the service user. Repair those runtime mount permissions before
@@ -12,6 +13,24 @@ RUN_USER="${ACORE_RUN_USER:-acore}"
 if [[ "$(id -u)" == "0" ]]; then
     mkdir -p "$CONF_DIR" "$LOGS_DIR" "$TEMP_DIR"
     chown -R "$RUN_USER:$RUN_USER" "$CONF_DIR" "$LOGS_DIR" "$TEMP_DIR"
+fi
+
+# CharacterDatabase prepares a custom query against this table before the
+# regular database updater has applied custom world migrations. Bootstrap the
+# idempotent schema on first deployment so dbimport can prepare that query.
+if [[ "$ACORE_COMPONENT" == "dbimport" && -f "$BOT_RENAME_SCHEMA" ]]; then
+    if [[ -z "${AC_WORLD_DATABASE_INFO:-}" ]]; then
+        echo "AC_WORLD_DATABASE_INFO is required to bootstrap the custom bot schema." >&2
+        exit 1
+    fi
+
+    IFS=';' read -r DB_HOST DB_PORT DB_USER DB_PASSWORD DB_NAME <<< "$AC_WORLD_DATABASE_INFO"
+    MYSQL_PWD="$DB_PASSWORD" mysql \
+        --protocol=TCP \
+        --host="$DB_HOST" \
+        --port="$DB_PORT" \
+        --user="$DB_USER" \
+        "$DB_NAME" < "$BOT_RENAME_SCHEMA"
 fi
 
 if ! touch "$CONF_DIR/.write-test" || ! touch "$LOGS_DIR/.write-test"; then
