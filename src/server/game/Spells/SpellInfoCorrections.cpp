@@ -1130,6 +1130,8 @@ void SpellMgr::LoadSpellInfoCorrections()
     {
         spellInfo->AttributesEx3 |= SPELL_ATTR3_SUPPRESS_TARGET_PROCS;
         spellInfo->AttributesEx4 |= SPELL_ATTR4_DAMAGE_DOESNT_BREAK_AURAS;
+        // Explosion is AoE triggered on aura expiry - cannot be reflected (retail: Spell Reflection only works on single-target spells)
+        spellInfo->AttributesEx |= SPELL_ATTR1_NO_REFLECTION;
     });
 
     // Evocation
@@ -1589,7 +1591,7 @@ void SpellMgr::LoadSpellInfoCorrections()
         spellInfo->Speed = 8.0f;
     });
 
-    // Spell Absorption
+    // Shadowmoon Reaver - Spell Absorption
     ApplySpellFix({ 41034 }, [](SpellInfo* spellInfo)
     {
         spellInfo->Effects[EFFECT_2].Effect = SPELL_EFFECT_APPLY_AURA;
@@ -1598,12 +1600,13 @@ void SpellMgr::LoadSpellInfoCorrections()
         spellInfo->Effects[EFFECT_2].MiscValue = SPELL_SCHOOL_MASK_MAGIC;
     });
 
-    // Shared Bonds
+    // Priestess of Delight and Priestess of Torment - Shared Bonds
     ApplySpellFix({ 41363 }, [](SpellInfo* spellInfo)
     {
         spellInfo->AttributesEx &= ~SPELL_ATTR1_IS_CHANNELED;
     });
 
+    // Illidari Council - Veras Darkshadow
     ApplySpellFix({
         41485,  // Deadly Poison
         41487   // Envenom
@@ -1632,13 +1635,13 @@ void SpellMgr::LoadSpellInfoCorrections()
         spellInfo->RangeEntry = sSpellRangeStore.LookupEntry(13); // 0-50000yd
     });
 
-    // Watery Grave Explosion
+    // Morogrim Tidewalker - Watery Grave Explosion
     ApplySpellFix({ 37852 }, [](SpellInfo* spellInfo)
     {
         spellInfo->AttributesEx5 |= SPELL_ATTR5_ALLOW_WHILE_STUNNED;
     });
 
-    // Amplify Damage
+    // Prince Malchezaar - Amplify Damage
     ApplySpellFix({ 39095 }, [](SpellInfo* spellInfo)
     {
         spellInfo->MaxAffectedTargets = 1;
@@ -1651,6 +1654,7 @@ void SpellMgr::LoadSpellInfoCorrections()
         spellInfo->AttributesCu |= SPELL_ATTR0_CU_SINGLE_AURA_STACK;
     });
 
+    // Archimonde
     ApplySpellFix({
         31984,  // Finger of Death
         35354   // Hand of Death
@@ -1660,10 +1664,16 @@ void SpellMgr::LoadSpellInfoCorrections()
         spellInfo->Attributes = SPELL_ATTR0_IS_ABILITY;
     });
 
-    // Finger of Death
+    // Archimonde - Finger of Death
     ApplySpellFix({ 32111 }, [](SpellInfo* spellInfo)
     {
         spellInfo->CastTimeEntry = sSpellCastTimesStore.LookupEntry(0); // We only need the animation, no damage
+    });
+
+    // Archimonde - Doomfire
+    ApplySpellFix({ 31944, 31969 }, [](SpellInfo* spellInfo)
+    {
+        spellInfo->AttributesEx4 |= SPELL_ATTR4_NO_CAST_LOG;
     });
 
     // Flame Breath, catapult spell
@@ -2068,7 +2078,6 @@ void SpellMgr::LoadSpellInfoCorrections()
     // Potent Pheromones
     ApplySpellFix({ 64321 }, [](SpellInfo* spellInfo)
     {
-        spellInfo->AttributesEx3 |= SPELL_ATTR3_ONLY_ON_PLAYER;
         spellInfo->AttributesEx |= SPELL_ATTR1_IMMUNITY_PURGES_EFFECT;
     });
 
@@ -2108,12 +2117,6 @@ void SpellMgr::LoadSpellInfoCorrections()
     ApplySpellFix({ 63050 }, [](SpellInfo* spellInfo)
     {
         spellInfo->AttributesEx6 |= SPELL_ATTR6_IGNORE_PHASE_SHIFT;
-    });
-
-    // Shadow Nova
-    ApplySpellFix({ 62714, 65209 }, [](SpellInfo* spellInfo)
-    {
-        spellInfo->AttributesEx3 |= SPELL_ATTR3_ALWAYS_HIT;
     });
 
     // Cosmic Smash (Algalon the Observer)
@@ -5261,6 +5264,12 @@ void SpellMgr::LoadSpellInfoCorrections()
         spellInfo->Effects[EFFECT_0].BasePoints = 1;
     });
 
+    // 51036 Summon Venture Co. Air Patrol
+    ApplySpellFix({ 51036 }, [](SpellInfo* spellInfo)
+    {
+        spellInfo->Effects[EFFECT_0].TargetA = SpellImplicitTargetInfo(TARGET_DEST_CASTER);
+    });
+
     for (uint32 i = 0; i < GetSpellInfoStoreSize(); ++i)
     {
         SpellInfo* spellInfo = mSpellInfoMap[i];
@@ -5390,6 +5399,13 @@ void SpellMgr::LoadSpellInfoCorrections()
     vse = const_cast<VehicleSeatEntry*>(sVehicleSeatStore.LookupEntry(4693)); // Siege Engine, Accessory
     vse->m_flags &= ~VEHICLE_SEAT_FLAG_PASSENGER_NOT_SELECTABLE;
     vse = const_cast<VehicleSeatEntry*>(sVehicleSeatStore.LookupEntry(1520)); // Wyrmrest Vanquisher
+    vse->m_flags |= VEHICLE_SEAT_FLAG_PASSENGER_NOT_SELECTABLE;
+
+    // Salvaged Siege Engine (Ulduar) extra passenger seats: the only salvaged vehicle seats
+    // without this flag, leaving those passengers targetable by Flame Leviathan's AoE
+    vse = const_cast<VehicleSeatEntry*>(sVehicleSeatStore.LookupEntry(4026));
+    vse->m_flags |= VEHICLE_SEAT_FLAG_PASSENGER_NOT_SELECTABLE;
+    vse = const_cast<VehicleSeatEntry*>(sVehicleSeatStore.LookupEntry(4027));
     vse->m_flags |= VEHICLE_SEAT_FLAG_PASSENGER_NOT_SELECTABLE;
 
     // pussywizard: fix z offset for some vehicles:

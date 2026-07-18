@@ -265,11 +265,21 @@ public:
         IP = ip;
     }
 
+    void SaveStats(uint32 damageDone, uint32 healingDone, uint32 killingBlows)
+    {
+        DamageDone = damageDone;
+        HealingDone = healingDone;
+        KillingBlows = killingBlows;
+    }
+
     std::string Name{};
     ObjectGuid::LowType Guid{0};
     uint32 Acc{0};
     uint32 ArenaTeamId{0};
     std::string IP{};
+    uint32 DamageDone{0};
+    uint32 HealingDone{0};
+    uint32 KillingBlows{0};
 };
 
 enum BGHonorMode
@@ -280,7 +290,6 @@ enum BGHonorMode
 };
 
 #define ARENA_TIMELIMIT_POINTS_LOSS    -16
-#define ARENA_READY_MARKER_ENTRY 301337
 
 /*
     This class is used to:
@@ -345,11 +354,7 @@ public:
     }
 
     [[nodiscard]] uint32 GetMaxPlayersPerTeam() const { return m_MaxPlayersPerTeam; }
-    [[nodiscard]] uint32 GetMinPlayersPerTeam() const
-    {
-        auto lowLevelsOverride = sWorld->getIntConfig(CONFIG_BATTLEGROUND_OVERRIDE_LOWLEVELS_MINPLAYERS);
-        return (lowLevelsOverride && !isTemplate() && !isMaxLevel() && !isArena()) ? lowLevelsOverride : m_MinPlayersPerTeam;
-    }
+    [[nodiscard]] uint32 GetMinPlayersPerTeam() const;
 
     [[nodiscard]] int32 GetStartDelayTime() const     { return m_StartDelayTime; }
     [[nodiscard]] uint8 GetArenaType() const          { return m_ArenaType; }
@@ -383,6 +388,9 @@ public:
 
     void ModifyStartDelayTime(int32 diff) { m_StartDelayTime -= diff; }
     void SetStartDelayTime(int32 Time)    { m_StartDelayTime = Time; }
+
+    [[nodiscard]] uint8 GetStartingEventFlags() const { return m_Events; }
+    void AddStartingEventFlag(uint8 flag) { m_Events |= flag; }
 
     void SetMaxPlayersPerTeam(uint32 MaxPlayers) { m_MaxPlayersPerTeam = MaxPlayers; }
     void SetMinPlayersPerTeam(uint32 MinPlayers) { m_MinPlayersPerTeam = MinPlayers; }
@@ -419,9 +427,6 @@ public:
     //end npcbot
     [[nodiscard]] BattlegroundPlayerMap const& GetPlayers() const { return m_Players; }
     [[nodiscard]] uint32 GetPlayersSize() const { return m_Players.size(); }
-
-    void ReadyMarkerClicked(Player* p); // pussywizard
-    GuidSet readyMarkerClickedSet; // pussywizard
 
     typedef std::unordered_map<ObjectGuid::LowType, BattlegroundScore*> BattlegroundScoreMap;
     typedef std::unordered_map<ObjectGuid, ArenaLogEntryData> ArenaLogEntryDataMap; // pussywizard
