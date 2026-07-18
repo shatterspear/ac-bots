@@ -35,9 +35,9 @@ fi
 
 # Copy all default config files to env/dist/etc if they don't already exist
 # -r == recursive
-# -n == no clobber (don't overwrite)
+# --update=none == no clobber (don't overwrite)
 # -v == be verbose
-cp -rnv /azerothcore/env/ref/etc/* "$CONF_DIR"
+cp -rv --update=none /azerothcore/env/ref/etc/* "$CONF_DIR"
 
 CONF="$CONF_DIR/$ACORE_COMPONENT.conf"
 CONF_DIST="$CONF_DIR/$ACORE_COMPONENT.conf.dist"

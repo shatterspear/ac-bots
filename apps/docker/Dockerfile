@@ -181,7 +181,11 @@ RUN userdel --remove ubuntu \
   && addgroup --gid "$GROUP_ID" "$DOCKER_USER" \
   && adduser --disabled-password --gecos '' --uid "$USER_ID" --gid "$GROUP_ID" "$DOCKER_USER" \
   && passwd -d "$DOCKER_USER" \
-  && chown -R "$DOCKER_USER:$DOCKER_USER" /azerothcore
+  && chown -R "$DOCKER_USER:$DOCKER_USER" /azerothcore \
+  && install -d -o "$DOCKER_USER" -g "$DOCKER_USER" \
+       /azerothcore/env/dist/etc \
+       /azerothcore/env/dist/logs \
+       /azerothcore/env/dist/temp
 
 COPY --chown=$USER_ID:$GROUP_ID \
      --chmod=755 \
