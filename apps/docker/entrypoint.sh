@@ -3,6 +3,16 @@ set -euo pipefail
 
 CONF_DIR="${CONF_DIR:-/azerothcore/env/dist/etc}"
 LOGS_DIR="${LOGS_DIR:-/azerothcore/env/dist/logs}"
+TEMP_DIR="${TEMP_DIR:-/azerothcore/env/dist/temp}"
+RUN_USER="${ACORE_RUN_USER:-acore}"
+
+# Dokploy volumes can be created as root even when the image contents are
+# owned by the service user. Repair those runtime mount permissions before
+# dropping privileges for the actual AzerothCore process.
+if [[ "$(id -u)" == "0" ]]; then
+    mkdir -p "$CONF_DIR" "$LOGS_DIR" "$TEMP_DIR"
+    chown -R "$RUN_USER:$RUN_USER" "$CONF_DIR" "$LOGS_DIR" "$TEMP_DIR"
+fi
 
 if ! touch "$CONF_DIR/.write-test" || ! touch "$LOGS_DIR/.write-test"; then
     cat <<EOF
@@ -49,6 +59,14 @@ else
     touch "$CONF"
 fi
 
+if [[ "$(id -u)" == "0" ]]; then
+    chown -R "$RUN_USER:$RUN_USER" "$CONF_DIR" "$LOGS_DIR" "$TEMP_DIR"
+fi
+
 echo "Starting $ACORE_COMPONENT..."
+
+if [[ "$(id -u)" == "0" ]]; then
+    exec gosu "$RUN_USER" "$@"
+fi
 
 exec "$@"

@@ -162,7 +162,7 @@ ENV ACORE_COMPONENT=undefined
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
       libmysqlclient21 libreadline8 libicu74 libncurses5-dev \
-      gettext-base default-mysql-client \
+      gettext-base default-mysql-client gosu \
       adduser \
     && rm -rf /var/lib/apt/lists/*
 
@@ -174,6 +174,7 @@ RUN bash /tmp/merge-custom-configs.sh /azerothcore/env/ref/etc /tmp/shatterspear
     && rm -rf /tmp/shatterspear-configs /tmp/merge-custom-configs.sh
 
 ENV PATH="/azerothcore/env/dist/bin:$PATH"
+ENV ACORE_RUN_USER=$DOCKER_USER
 
 # To use GID/UID 1000 in ubuntu > 23.04 the existing user must be deleted
 # See https://bugs.launchpad.net/cloud-images/+bug/2005129
@@ -190,8 +191,6 @@ RUN userdel --remove ubuntu \
 COPY --chown=$USER_ID:$GROUP_ID \
      --chmod=755 \
      apps/docker/entrypoint.sh /azerothcore/entrypoint.sh
-
-USER $DOCKER_USER
 
 ENTRYPOINT ["/usr/bin/env", "bash", "/azerothcore/entrypoint.sh"]
 
@@ -248,8 +247,6 @@ CMD ["worldserver"]
 FROM runtime AS db-import
 
 LABEL description="AzerothCore Database Import tool"
-
-USER $DOCKER_USER
 
 ENV ACORE_COMPONENT=dbimport
 
