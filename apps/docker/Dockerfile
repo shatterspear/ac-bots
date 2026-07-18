@@ -4,9 +4,9 @@ ARG UBUNTU_VERSION=24.04 # lts
 
 FROM alpine:3.21 AS shatterspear-assets
 
-ARG ALE_REPOSITORY=git@github.com:shatterspear/mod-eluna.git
-ARG INSTANCE_RESET_REPOSITORY=git@github.com:shatterspear/mod-instance-reset.git
-ARG TRANSMOG_REPOSITORY=git@github.com:shatterspear/mod-transmog.git
+ARG ALE_REPOSITORY=https://github.com/shatterspear/mod-eluna.git
+ARG INSTANCE_RESET_REPOSITORY=https://github.com/shatterspear/mod-instance-reset.git
+ARG TRANSMOG_REPOSITORY=https://github.com/shatterspear/mod-transmog.git
 ARG CONFIG_REPOSITORY=git@github.com:shatterspear/ac-configs.git
 ARG LUA_REPOSITORY=git@github.com:shatterspear/lua_scripts.git
 ARG DBC_REPOSITORY=git@github.com:shatterspear/dbc.git
