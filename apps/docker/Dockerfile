@@ -15,15 +15,24 @@ RUN apk add --no-cache git openssh-client \
     && mkdir -p -m 0700 /root/.ssh \
     && ssh-keyscan github.com > /root/.ssh/known_hosts
 
-RUN --mount=type=secret,id=github_ssh_key,required=true \
-    install -m 0600 /run/secrets/github_ssh_key /root/.ssh/id_ed25519 \
-    && git clone --depth 1 "$ALE_REPOSITORY" /assets/mod-ale \
+RUN git clone --depth 1 "$ALE_REPOSITORY" /assets/mod-ale \
     && git clone --depth 1 "$INSTANCE_RESET_REPOSITORY" /assets/mod-instance-reset \
-    && git clone --depth 1 "$TRANSMOG_REPOSITORY" /assets/mod-transmog \
-    && git clone --depth 1 "$CONFIG_REPOSITORY" /assets/configs \
-    && git clone --depth 1 "$LUA_REPOSITORY" /assets/lua_scripts \
-    && git clone --depth 1 "$DBC_REPOSITORY" /assets/dbc \
-    && rm -f /root/.ssh/id_ed25519 \
+    && git clone --depth 1 "$TRANSMOG_REPOSITORY" /assets/mod-transmog
+
+RUN --mount=type=secret,id=github_key_ac_configs_b64,required=true \
+    --mount=type=secret,id=github_key_lua_scripts_b64,required=true \
+    --mount=type=secret,id=github_key_dbc_b64,required=true \
+    base64 -d /run/secrets/github_key_ac_configs_b64 > /tmp/github_key_ac_configs \
+    && base64 -d /run/secrets/github_key_lua_scripts_b64 > /tmp/github_key_lua_scripts \
+    && base64 -d /run/secrets/github_key_dbc_b64 > /tmp/github_key_dbc \
+    && chmod 0600 /tmp/github_key_ac_configs /tmp/github_key_lua_scripts /tmp/github_key_dbc \
+    && GIT_SSH_COMMAND="ssh -i /tmp/github_key_ac_configs -o IdentitiesOnly=yes" \
+        git clone --depth 1 "$CONFIG_REPOSITORY" /assets/configs \
+    && GIT_SSH_COMMAND="ssh -i /tmp/github_key_lua_scripts -o IdentitiesOnly=yes" \
+        git clone --depth 1 "$LUA_REPOSITORY" /assets/lua_scripts \
+    && GIT_SSH_COMMAND="ssh -i /tmp/github_key_dbc -o IdentitiesOnly=yes" \
+        git clone --depth 1 "$DBC_REPOSITORY" /assets/dbc \
+    && rm -f /tmp/github_key_ac_configs /tmp/github_key_lua_scripts /tmp/github_key_dbc \
     && find /assets/configs -type f -name '*.bac' -delete \
     && find /assets/configs -type f -name '*.conf' -exec sed -i -E \
        '/^[[:space:]]*(LoginDatabaseInfo|WorldDatabaseInfo|CharacterDatabaseInfo|MySQLExecutable|DataDir)[[:space:]]*=/d' '{}' + \
