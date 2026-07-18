@@ -1678,7 +1678,7 @@ void Unit::CalculateSpellDamageTaken(SpellNonMeleeDamage* damageInfo, int32 dama
                     if (damageSchoolMask & SPELL_SCHOOL_MASK_NORMAL)
                         damage *= (BotMgr::IsWanderingWorldBot(ToCreature()) ? BotCfg::GetBotWandererDamageMod() : BotCfg::GetBotDamageModPhysical());
                     else if (damageSchoolMask & SPELL_SCHOOL_MASK_MAGIC)
-                        damage *= (BotMgr::IsWanderingWorldBot(ToCreature()) ? BotMgr::GetBotWandererDamageMod() : BotMgr::GetBotDamageModSpell());
+                        damage *= (BotMgr::IsWanderingWorldBot(ToCreature()) ? BotCfg::GetBotWandererDamageMod() : BotCfg::GetBotDamageModSpell());
 
                     // SHATTERSPEAR: Lower bots damage against players
                     if (victim->IsPlayer()) {
@@ -1769,7 +1769,7 @@ void Unit::CalculateSpellDamageTaken(SpellNonMeleeDamage* damageInfo, int32 dama
                     if (damageSchoolMask & SPELL_SCHOOL_MASK_NORMAL)
                         damage *= (BotMgr::IsWanderingWorldBot(ToCreature()) ? BotCfg::GetBotWandererDamageMod() : BotCfg::GetBotDamageModPhysical());
                     else if (damageSchoolMask & SPELL_SCHOOL_MASK_MAGIC)
-                        damage *= (BotMgr::IsWanderingWorldBot(ToCreature()) ? BotMgr::GetBotWandererDamageMod() : BotMgr::GetBotDamageModSpell());
+                        damage *= (BotMgr::IsWanderingWorldBot(ToCreature()) ? BotCfg::GetBotWandererDamageMod() : BotCfg::GetBotDamageModSpell());
 
                     // SHATTERSPEAR: Lower bots damage against players
                     if (victim->IsPlayer()) {
@@ -1954,7 +1954,7 @@ void Unit::CalculateMeleeDamage(Unit* victim, CalcDamageInfo* damageInfo, Weapon
             //damage is unused. TODO: remove this redundant argument
             ToCreature()->ApplyBotDamageMultiplierMelee(damageInfo->damages[i].damage, *damageInfo);
             damage = damageInfo->damages[i].damage;
-            damage *= (BotMgr::IsWanderingWorldBot(ToCreature()) ? BotMgr::GetBotWandererDamageMod() : BotMgr::GetBotDamageModPhysical());
+            damage *= (BotMgr::IsWanderingWorldBot(ToCreature()) ? BotCfg::GetBotWandererDamageMod() : BotCfg::GetBotDamageModPhysical());
 
             // SHATTERSPEAR: Lower bots damage against players
             if (victim->IsPlayer()) {

@@ -1,5 +1,5 @@
-[submodule "mod-eluna"]
-    path = modules/mod-eluna
+[submodule "mod-ale"]
+	path = modules/mod-ale
     url = git@github.com:shatterspear/mod-eluna.git
 
 [submodule "mod-instance-reset"]
