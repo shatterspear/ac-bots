@@ -24,9 +24,12 @@ RUN --mount=type=secret,id=github_key_ac_configs_b64,required=true \
     --mount=type=secret,id=github_key_lua_scripts_b64,required=true \
     --mount=type=secret,id=github_key_dbc_b64,required=true \
     echo "Shatterspear asset revision: $SHATTERSPEAR_ASSETS_REV" \
-    && base64 -d /run/secrets/github_key_ac_configs_b64 > /tmp/github_key_ac_configs \
-    && base64 -d /run/secrets/github_key_lua_scripts_b64 > /tmp/github_key_lua_scripts \
-    && base64 -d /run/secrets/github_key_dbc_b64 > /tmp/github_key_dbc \
+    && base64 -d /run/secrets/github_key_ac_configs_b64 | tr -d '\r' > /tmp/github_key_ac_configs \
+    && base64 -d /run/secrets/github_key_lua_scripts_b64 | tr -d '\r' > /tmp/github_key_lua_scripts \
+    && base64 -d /run/secrets/github_key_dbc_b64 | tr -d '\r' > /tmp/github_key_dbc \
+    && printf '\n' >> /tmp/github_key_ac_configs \
+    && printf '\n' >> /tmp/github_key_lua_scripts \
+    && printf '\n' >> /tmp/github_key_dbc \
     && chmod 0600 /tmp/github_key_ac_configs /tmp/github_key_lua_scripts /tmp/github_key_dbc \
     && GIT_SSH_COMMAND="ssh -i /tmp/github_key_ac_configs -o IdentitiesOnly=yes" \
         git clone --depth 1 "$CONFIG_REPOSITORY" /assets/configs \
