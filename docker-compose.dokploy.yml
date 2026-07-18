@@ -1,0 +1,95 @@
+x-build: &azerothcore-build
+  context: .
+  dockerfile: apps/docker/Dockerfile
+  secrets:
+    - github_key_ac_configs_b64
+    - github_key_lua_scripts_b64
+    - github_key_dbc_b64
+
+x-database-environment: &database-environment
+  AC_LOGIN_DATABASE_INFO: ${AC_LOGIN_DATABASE_INFO:?AC_LOGIN_DATABASE_INFO is required}
+  AC_WORLD_DATABASE_INFO: ${AC_WORLD_DATABASE_INFO:?AC_WORLD_DATABASE_INFO is required}
+  AC_CHARACTER_DATABASE_INFO: ${AC_CHARACTER_DATABASE_INFO:?AC_CHARACTER_DATABASE_INFO is required}
+
+services:
+  client-data:
+    build:
+      <<: *azerothcore-build
+      target: client-data
+    restart: "no"
+    volumes:
+      - client-data:/azerothcore/env/dist/data
+
+  db-import:
+    build:
+      <<: *azerothcore-build
+      target: db-import
+    restart: "no"
+    environment:
+      <<: *database-environment
+      AC_DATA_DIR: /azerothcore/env/dist/data
+      AC_LOGS_DIR: /azerothcore/env/dist/logs
+    volumes:
+      - db-import-logs:/azerothcore/env/dist/logs
+    networks:
+      - dokploy-network
+
+  authserver:
+    build:
+      <<: *azerothcore-build
+      target: authserver
+    restart: unless-stopped
+    environment:
+      AC_LOGIN_DATABASE_INFO: ${AC_LOGIN_DATABASE_INFO:?AC_LOGIN_DATABASE_INFO is required}
+      AC_LOGS_DIR: /azerothcore/env/dist/logs
+    ports:
+      - "3724:3724"
+    volumes:
+      - authserver-logs:/azerothcore/env/dist/logs
+    networks:
+      - dokploy-network
+    depends_on:
+      db-import:
+        condition: service_completed_successfully
+
+  worldserver:
+    build:
+      <<: *azerothcore-build
+      target: worldserver
+    restart: unless-stopped
+    stop_grace_period: 60s
+    environment:
+      <<: *database-environment
+      AC_DATA_DIR: /azerothcore/env/dist/data
+      AC_LOGS_DIR: /azerothcore/env/dist/logs
+      AC_ALE_SCRIPT_PATH: /azerothcore/env/dist/bin/lua_scripts
+    ports:
+      - "8085:8085"
+    volumes:
+      - client-data:/azerothcore/env/dist/data:ro
+      - worldserver-logs:/azerothcore/env/dist/logs
+    networks:
+      - dokploy-network
+    depends_on:
+      client-data:
+        condition: service_completed_successfully
+      db-import:
+        condition: service_completed_successfully
+
+volumes:
+  client-data:
+  db-import-logs:
+  authserver-logs:
+  worldserver-logs:
+
+networks:
+  dokploy-network:
+    external: true
+
+secrets:
+  github_key_ac_configs_b64:
+    environment: github_key_ac_configs_b64
+  github_key_lua_scripts_b64:
+    environment: github_key_lua_scripts_b64
+  github_key_dbc_b64:
+    environment: github_key_dbc_b64

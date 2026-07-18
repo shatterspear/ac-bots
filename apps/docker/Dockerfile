@@ -173,8 +173,6 @@ COPY apps/docker/merge-custom-configs.sh /tmp/merge-custom-configs.sh
 RUN bash /tmp/merge-custom-configs.sh /azerothcore/env/ref/etc /tmp/shatterspear-configs \
     && rm -rf /tmp/shatterspear-configs /tmp/merge-custom-configs.sh
 
-VOLUME /azerothcore/env/dist/etc
-
 ENV PATH="/azerothcore/env/dist/bin:$PATH"
 
 # To use GID/UID 1000 in ubuntu > 23.04 the existing user must be deleted
@@ -236,8 +234,6 @@ COPY --chown=$DOCKER_USER:$DOCKER_USER \
 COPY --chown=$DOCKER_USER:$DOCKER_USER \
      --from=shatterspear-assets \
      /assets/lua_scripts /azerothcore/env/dist/bin/lua_scripts
-
-VOLUME /azerothcore/env/dist/etc
 
 CMD ["worldserver"]
 
