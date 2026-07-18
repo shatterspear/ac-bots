@@ -39,6 +39,7 @@ services:
       <<: *azerothcore-build
       target: authserver
     restart: unless-stopped
+    tty: true
     environment:
       AC_LOGIN_DATABASE_INFO: ${AC_LOGIN_DATABASE_INFO:?AC_LOGIN_DATABASE_INFO is required}
       AC_LOGS_DIR: /azerothcore/env/dist/logs
@@ -57,6 +58,8 @@ services:
       <<: *azerothcore-build
       target: worldserver
     restart: unless-stopped
+    stdin_open: true
+    tty: true
     stop_grace_period: 60s
     environment:
       <<: *database-environment

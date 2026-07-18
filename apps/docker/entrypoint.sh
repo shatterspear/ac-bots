@@ -73,7 +73,7 @@ CONF_DIST="$CONF_DIR/$ACORE_COMPONENT.conf.dist"
 
 # Copy the "dist" file to the "conf" if the conf doesn't already exist
 if [[ -f "$CONF_DIST" ]]; then
-    cp -vn "$CONF_DIST" "$CONF"
+    cp -v --update=none "$CONF_DIST" "$CONF"
 else
     touch "$CONF"
 fi
