@@ -10,6 +10,7 @@ ARG TRANSMOG_REPOSITORY=https://github.com/shatterspear/mod-transmog.git
 ARG CONFIG_REPOSITORY=git@github.com:shatterspear/ac-configs.git
 ARG LUA_REPOSITORY=git@github.com:shatterspear/lua_scripts.git
 ARG DBC_REPOSITORY=git@github.com:shatterspear/dbc.git
+ARG SHATTERSPEAR_ASSETS_REV=1
 
 RUN apk add --no-cache git openssh-client \
     && mkdir -p -m 0700 /root/.ssh \
@@ -22,7 +23,8 @@ RUN git clone --depth 1 "$ALE_REPOSITORY" /assets/mod-ale \
 RUN --mount=type=secret,id=github_key_ac_configs_b64,required=true \
     --mount=type=secret,id=github_key_lua_scripts_b64,required=true \
     --mount=type=secret,id=github_key_dbc_b64,required=true \
-    base64 -d /run/secrets/github_key_ac_configs_b64 > /tmp/github_key_ac_configs \
+    echo "Shatterspear asset revision: $SHATTERSPEAR_ASSETS_REV" \
+    && base64 -d /run/secrets/github_key_ac_configs_b64 > /tmp/github_key_ac_configs \
     && base64 -d /run/secrets/github_key_lua_scripts_b64 > /tmp/github_key_lua_scripts \
     && base64 -d /run/secrets/github_key_dbc_b64 > /tmp/github_key_dbc \
     && chmod 0600 /tmp/github_key_ac_configs /tmp/github_key_lua_scripts /tmp/github_key_dbc \

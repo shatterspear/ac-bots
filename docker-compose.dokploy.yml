@@ -1,6 +1,8 @@
 x-build: &azerothcore-build
   context: .
   dockerfile: apps/docker/Dockerfile
+  args:
+    SHATTERSPEAR_ASSETS_REV: ${SHATTERSPEAR_ASSETS_REV:-1}
   secrets:
     - github_key_ac_configs_b64
     - github_key_lua_scripts_b64
