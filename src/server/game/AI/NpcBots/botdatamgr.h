@@ -133,6 +133,11 @@ struct NpcBotExtras
 
 struct NpcBotTransmogData
 {
+    NpcBotTransmogData()
+    {
+        transmogs.fill({ 0, -1 });
+    }
+
     std::array<std::pair<uint32 /*item_id*/, int32 /*fake_id*/>, BOT_TRANSMOG_INVENTORY_SIZE> transmogs;
 };
 
