@@ -68,8 +68,12 @@ services:
       AC_DATA_DIR: /azerothcore/env/dist/data
       AC_LOGS_DIR: /azerothcore/env/dist/logs
       AC_ALE_SCRIPT_PATH: /azerothcore/env/dist/bin/lua_scripts
+      AC_SOAP_ENABLED: "1"
+      AC_SOAP_IP: "0.0.0.0"
+      AC_SOAP_PORT: ${SOAP_PORT:-7878}
     ports:
       - "8085:8085"
+      - "${SOAP_PORT:-7878}:${SOAP_PORT:-7878}"
     volumes:
       - client-data:/azerothcore/env/dist/data:ro
       - worldserver-logs:/azerothcore/env/dist/logs
