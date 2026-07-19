@@ -64,35 +64,53 @@ struct HireableBot
     std::string name;
 };
 
-std::vector<HireableBot> GetHireableBots(Player const* player)
+using BotGenderBuckets = std::array<std::vector<HireableBot>, GENDER_NONE>;
+using BotRaceIndex = std::map<uint8, BotGenderBuckets>;
+using BotClassIndex = std::map<uint8, BotRaceIndex>;
+
+BotClassIndex const& GetHireableBotIndex()
 {
-    std::vector<HireableBot> bots;
-    for (uint32 entry : BotDataMgr::GetHireableNPCBotIds())
+    static BotClassIndex const botIndex = []
     {
-        NpcBotExtras const* extras = BotDataMgr::SelectNpcBotExtras(entry);
-        NpcBotAppearanceData const* appearance = BotDataMgr::SelectNpcBotAppearance(entry);
-        CreatureTemplate const* creatureTemplate = sObjectMgr->GetCreatureTemplate(entry);
-        if (!extras || !creatureTemplate)
-            continue;
-
-        if (Creature const* liveBot = BotDataMgr::FindBot(entry))
-            if (!liveBot->IsAlive() || liveBot->IsTempBot() || liveBot->IsSummon() || liveBot->IsWandererBot() ||
-                liveBot->GetBotAI()->GetBotOwnerGuid() || liveBot->HasAura(BERSERK))
-                continue;
-
-        if (BotCfg::FilterRaces() && extras->bclass < BOT_CLASS_EX_START && extras->race)
+        BotClassIndex index;
+        for (uint32 entry : BotDataMgr::GetExistingNPCBotIds())
         {
-            uint32 raceMask = 1u << (extras->race - 1);
-            if ((raceMask & sRaceMgr->GetPlayableRaceMask()) &&
-                !(raceMask & ((player->GetRaceMask() & sRaceMgr->GetAllianceRaceMask()) ?
-                    sRaceMgr->GetAllianceRaceMask() : sRaceMgr->GetHordeRaceMask())))
+            NpcBotExtras const* extras = BotDataMgr::SelectNpcBotExtras(entry);
+            NpcBotAppearanceData const* appearance = BotDataMgr::SelectNpcBotAppearance(entry);
+            CreatureTemplate const* creatureTemplate = sObjectMgr->GetCreatureTemplate(entry);
+            uint8 gender = appearance ? appearance->gender : static_cast<uint8>(GENDER_MALE);
+            if (!extras || !creatureTemplate || gender >= GENDER_NONE)
                 continue;
-        }
 
-        bots.push_back({ entry, extras->bclass, extras->race,
-            appearance ? appearance->gender : static_cast<uint8>(GENDER_MALE), creatureTemplate->Name });
+            index[extras->bclass][extras->race][gender].push_back(
+                { entry, extras->bclass, extras->race, gender, creatureTemplate->Name });
+        }
+        return index;
+    }();
+    return botIndex;
+}
+
+bool IsBotHireable(HireableBot const& bot, Player const* player)
+{
+    NpcBotData const* data = BotDataMgr::SelectNpcBotData(bot.entry);
+    if (!data || data->owner)
+        return false;
+
+    if (Creature const* liveBot = BotDataMgr::FindBot(bot.entry))
+        if (!liveBot->IsAlive() || liveBot->IsTempBot() || liveBot->IsSummon() || liveBot->IsWandererBot() ||
+            liveBot->GetBotAI()->GetBotOwnerGuid() || liveBot->HasAura(BERSERK))
+            return false;
+
+    if (BotCfg::FilterRaces() && bot.botclass < BOT_CLASS_EX_START && bot.race)
+    {
+        uint32 raceMask = 1u << (bot.race - 1);
+        if ((raceMask & sRaceMgr->GetPlayableRaceMask()) &&
+            !(raceMask & ((player->GetRaceMask() & sRaceMgr->GetAllianceRaceMask()) ?
+                sRaceMgr->GetAllianceRaceMask() : sRaceMgr->GetHordeRaceMask())))
+            return false;
     }
-    return bots;
+
+    return true;
 }
 }
 
@@ -175,8 +193,12 @@ public:
                     uint8 availCount = 0;
                     std::array<uint32, BOT_CLASS_END> npcbot_count_per_class{ 0 };
 
-                    for (HireableBot const& bot : GetHireableBots(player))
-                        ++npcbot_count_per_class[bot.botclass];
+                    for (auto const& [botclass, races] : GetHireableBotIndex())
+                        for (auto const& raceEntry : races)
+                            for (auto const& bots : raceEntry.second)
+                                for (HireableBot const& bot : bots)
+                                    if (IsBotHireable(bot, player))
+                                        ++npcbot_count_per_class[botclass];
 
                     for (uint8 botclass = BOT_CLASS_WARRIOR; botclass < BOT_CLASS_END; ++botclass)
                     {
@@ -253,9 +275,12 @@ public:
 
                     std::map<uint8, uint32> raceCounts;
 
-                    for (HireableBot const& bot : GetHireableBots(player))
-                        if (bot.botclass == botclass)
-                            ++raceCounts[bot.race];
+                    if (auto classItr = GetHireableBotIndex().find(botclass); classItr != GetHireableBotIndex().end())
+                        for (auto const& [race, genders] : classItr->second)
+                            for (auto const& bots : genders)
+                                for (HireableBot const& bot : bots)
+                                    if (IsBotHireable(bot, player))
+                                        ++raceCounts[race];
 
                     for (auto const& [race, count] : raceCounts)
                     {
@@ -279,9 +304,12 @@ public:
                     std::array<uint32, GENDER_NONE> genderCounts{};
 
                     subMenu = true;
-                    for (HireableBot const& bot : GetHireableBots(player))
-                        if (bot.botclass == botclass && bot.race == race && bot.gender < GENDER_NONE)
-                            ++genderCounts[bot.gender];
+                    if (auto classItr = GetHireableBotIndex().find(botclass); classItr != GetHireableBotIndex().end())
+                        if (auto raceItr = classItr->second.find(race); raceItr != classItr->second.end())
+                            for (uint8 gender = GENDER_MALE; gender < GENDER_NONE; ++gender)
+                                for (HireableBot const& bot : raceItr->second[gender])
+                                    if (IsBotHireable(bot, player))
+                                        ++genderCounts[gender];
 
                     if (genderCounts[GENDER_MALE])
                     {
@@ -314,18 +342,24 @@ public:
                     uint8 availCount = 0;
 
                     subMenu = true;
-                    for (HireableBot const& bot : GetHireableBots(player))
+                    auto classItr = GetHireableBotIndex().find(botclass);
+                    if (classItr != GetHireableBotIndex().end())
                     {
-                        if (bot.botclass != botclass || bot.race != race || bot.gender != gender)
-                            continue;
+                        auto raceItr = classItr->second.find(race);
+                        if (raceItr != classItr->second.end() && gender < GENDER_NONE)
+                            for (HireableBot const& bot : raceItr->second[gender])
+                            {
+                                if (!IsBotHireable(bot, player))
+                                    continue;
 
-                        std::ostringstream confirmation;
-                        confirmation << bot_ai::LocalizedNpcText(player, BOT_TEXT_BOTGIVER_WISH_TO_HIRE_) << bot.name << '?';
-                        player->PlayerTalkClass->GetGossipMenu().AddMenuItem(-1, GOSSIP_ICON_TALK, bot.name,
-                            HIRE_ENTRY, GOSSIP_ACTION_INFO_DEF + bot.entry, confirmation.str(), cost, false);
+                                std::ostringstream confirmation;
+                                confirmation << bot_ai::LocalizedNpcText(player, BOT_TEXT_BOTGIVER_WISH_TO_HIRE_) << bot.name << '?';
+                                player->PlayerTalkClass->GetGossipMenu().AddMenuItem(-1, GOSSIP_ICON_TALK, bot.name,
+                                    HIRE_ENTRY, GOSSIP_ACTION_INFO_DEF + bot.entry, confirmation.str(), cost, false);
 
-                        if (++availCount >= BOT_GOSSIP_MAX_ITEMS - 1)
-                            break;
+                                if (++availCount >= BOT_GOSSIP_MAX_ITEMS - 1)
+                                    break;
+                            }
                     }
 
                     if (availCount == 0)
