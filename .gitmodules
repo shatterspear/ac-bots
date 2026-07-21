@@ -9,3 +9,7 @@
 [submodule "mod-transmog"]
     path = modules/mod-transmog
     url = https://github.com/shatterspear/mod-transmog.git
+
+[submodule "mod-ah-bot"]
+    path = modules/mod-ah-bot
+    url = https://github.com/shatterspear/mod-ah-bot.git

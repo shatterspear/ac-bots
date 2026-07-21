@@ -71,5 +71,6 @@ merge_config "$custom_root/worldserver.conf" "$target_root/worldserver.conf"
 merge_config "$custom_root/dbimport.conf" "$target_root/dbimport.conf"
 merge_config "$custom_root/modules/instance-reset.conf" "$target_root/modules/instance-reset.conf"
 merge_config "$custom_root/modules/transmog.conf" "$target_root/modules/transmog.conf"
+merge_config "$custom_root/modules/mod_ahbot.conf" "$target_root/modules/mod_ahbot.conf"
 merge_config "$custom_root/modules/mod_LuaEngine.conf" "$target_root/modules/mod_ale.conf" 1
 merge_config "$custom_root/modules/mod_ale.conf" "$target_root/modules/mod_ale.conf"
